@@ -27,11 +27,11 @@ Global General := {
 ;@endregion
 
 Global General := {
-    PlaybackDevice: "",
+    PlaybackDevices: "",
 }
 
 ;@region INI
-SaveToINI.Push("General.PlaybackDevice")     ; add more to INI file
+SaveToINI.Push("General.PlaybackDevices")     ; add more to INI file
 RegisterArrayItems(SaveToINI)
 LoadINI()
 ;@endregion
