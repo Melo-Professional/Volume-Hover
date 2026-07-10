@@ -1,6 +1,5 @@
 #Requires AutoHotkey v2.0
 
-global ControlToSessionMap := Map()
 global DynamicControls := []
 global CurrentGuiHeight := 90 
 
@@ -57,7 +56,7 @@ CreateAudioMixerGui() {
 }
 
 RefreshSessionsForSelectedDevice() {
-    global MainGui, ChildGui, ControlToSessionMap, DynamicControls, DeviceMap, IsGuiVisible
+    global MainGui, ChildGui, DynamicControls, DeviceMap, IsGuiVisible
     global CurrentGuiHeight, TrayMouseX, TrayMouseY, MaxGuiHeight, VirtualGuiHeight, CurrentScrollPos
     
     ; Reset scroll position to top before rebuilding
@@ -71,18 +70,16 @@ RefreshSessionsForSelectedDevice() {
         try DllCall("user32\DestroyWindow", "Ptr", ctrl.Hwnd)
     }
     DynamicControls := [] 
-    ControlToSessionMap.Clear()
 
     DllCall("user32\RedrawWindow", "Ptr", MainGui.Hwnd, "Ptr", 0, "Ptr", 0, "UInt", 5)
 
     ; Minimal settings layout added directly to the scrolling child canvas
-    ;btnSettings := ChildGui.Add("Button", "x345 y8 w24 h24", "⚙")
-    btnSettings := ChildGui.Add("Button", "x341 y8 w28 h28", "⚙")
+    btnSettings := ChildGui.Add("Button", "x341 y18 w28 h28", "⚙")
     btnSettings.OnEvent("Click", OpenSettingsWindow)
     DynamicControls.Push(btnSettings)
 
     deviceNames := PopulatePlaybackDevices()
-    yPos := 15
+    yPos := 25 ; starting position
     wWidth := 380
 
     ActiveDevices := []
@@ -106,33 +103,31 @@ RefreshSessionsForSelectedDevice() {
         lblDevice.BypassTheme := true
         DynamicControls.Push(lblDevice)
         
-;        yPos += 22
         yPos += 40 ; after playback device
         
         for session in device.Sessions {
             SplitPath(session.ProgName, , , , &cleanProgName)
             lblApp := ChildGui.Add("Text", "x20 y" yPos " w100 h20 +0x4000", cleanProgName)
-            sliderY := yPos - 3
+            sliderY := yPos - 7
 
-            sldVol := ChildGui.Add("Slider", "x125 y" sliderY " w215 h25 +NoTicks Range0-100 AltSubmit", session.Volume)
-            lblVol := ChildGui.Add("Text", "x345 y" yPos " w25 h20 Left", session.Volume)
+            lblVol := ChildGui.Add("Text", "x338 y" yPos " w25 h20 Right", session.Volume)
+            
+            ; Instantiate the ModernSlider. Omitted theme params = Auto mode!
+            sldVol := ModernSlider(ChildGui, "x125 y" sliderY " w215 h25", session.Volume, 0, 100, OnSliderChange.Bind(session.SimpleVol, lblVol))
             
             DynamicControls.Push(lblApp)
-            DynamicControls.Push(sldVol)
             DynamicControls.Push(lblVol)
             
-            sessionData := {SimpleVol: session.SimpleVol, Slider: sldVol, Label: lblVol}
-            ControlToSessionMap[sldVol.Hwnd] := sessionData
+            ; Push the underlying native AHK controls inside the class so the window destructor works
+            DynamicControls.Push(sldVol.track)
+            DynamicControls.Push(sldVol.thumb)
             
-            sldVol.OnEvent("Change", OnSliderChange.Bind(session.SimpleVol, lblVol))
-;            yPos += 38
             yPos += 45 ; inter programs
         }
         
         ; 3. CHECK: Only add space/divider if this is NOT the last visible device in our list
         if (index < ActiveDevices.Length) {
-            ;yPos += 25
-            yPos += 25 ; after programs
+            yPos += 15 ; after programs
         }
     }
     
@@ -358,31 +353,18 @@ WM_ACTIVATE(wParam, lParam, msg, hwnd) {
     }
 }
 
-OnSliderChange(simpleVol, lblVol, sldCtrl, *) {
-    newVol := sldCtrl.Value
+; Adapted to accept the new dynamic value from the class directly
+OnSliderChange(simpleVol, lblVol, newVol, *) {
     lblVol.Text := newVol
     SetAppVolume(simpleVol, newVol)
 }
 
+; Simplified: Only handles canvas window scrolling now. The Slider handles its own volume scrolls!
 OnMouseWheel(wParam, lParam, msg, hwnd) {
-    global MainGui, ControlToSessionMap, CurrentScrollPos, VirtualGuiHeight, CurrentGuiHeight
-    wheelDelta := (wParam << 32 >> 48)
-    step := (wheelDelta > 0) ? 5 : -5
-    MouseGetPos(,, &winHwnd, &ctrlHwnd, 2)
-    
-    if (ControlToSessionMap.Has(ctrlHwnd)) {
-        data := ControlToSessionMap[ctrlHwnd]
-        currentVal := data.Slider.Value
-        newVal := Max(0, Min(100, currentVal + step))
-        
-        data.Slider.Value := newVal
-        data.Label.Text := newVal
-        
-        SetAppVolume(data.SimpleVol, newVal)
-        return 0 
-    }
+    global MainGui, CurrentScrollPos, VirtualGuiHeight, CurrentGuiHeight
     
     if (VirtualGuiHeight > CurrentGuiHeight) {
+        wheelDelta := (wParam << 32 >> 48)
         scrollAmount := (wheelDelta > 0) ? -24 : 24
         ScrollGuiWindow(scrollAmount)
         return 0

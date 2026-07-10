@@ -3,14 +3,14 @@
 /************************************************************************
  * @description Controls application audio volumes instantly by hovering over the Windows system tray icon.
  * @author Melo (melo@meloprofessional.com)
- * @date 2026/07/09
+ * @date 2026/07/10
  * @releasedate 2026/07/07
- * @version 1.0.2.4
+ * @version 1.0.2.6
  ***********************************************************************/
 
 AppName := "Volume Hover"
 ;@Ahk2Exe-Let U_AppName = %A_PriorLine%
-AppVersion := "1.0.2.4"
+AppVersion := "1.0.2.6"
 ;@Ahk2Exe-Let U_Version = %A_PriorLine%
 AppDescription := "Controls application audio volumes instantly by hovering over the Windows system tray icon."
 ;@endregion
@@ -44,8 +44,9 @@ KeyHistory(0)
 ;#Include *i <_Help>
 #Include *i <_Menu>
 
-#Include *i <Vars_Custom>
-#Include *i <Menu_Custom>
+#Include <Vars_Custom>
+#Include <Menu_Custom>
+#Include <_ModernSlider>
 #Include <AudioSessions>
 #Include <MixerGui>
 
