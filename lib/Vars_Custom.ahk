@@ -26,12 +26,26 @@ Global General := {
 ;Debug := true
 ;@endregion
 
+;Settings.GuiFontName:= "Microsoft Sans Serif"
+
 Global General := {
     PlaybackDevices: "",
+    OSDList: ["Disable", "Normal", "Slim"],
+    UseOSD: "Slim",
+    OSDMonitor: 1,
+    OSDPositionList: ["Top", "Center", "Bottom"],
+    OSDPosition: "Bottom",
+    KeyUp: "^+F8",
+    KeyDown: "^+F7",
+    MouseUp: "^+WheelUp",
+    MouseDown: "^+WheelDown",
 }
 
 ;@region INI
-SaveToINI.Push("General.PlaybackDevices")     ; add more to INI file
+SaveToINI.Push(
+    "General.PlaybackDevices", "General.UseOSD", "General.OSDMonitor", "General.OSDPosition",
+    "General.KeyUp", "General.KeyDown", "General.MouseUp", "General.MouseDown"
+    )     ; add more to INI file
 RegisterArrayItems(SaveToINI)
 LoadINI()
 ;@endregion

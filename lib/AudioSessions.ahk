@@ -5,7 +5,7 @@ global IID_IMMDeviceEnumerator    := "{A95664D2-9614-4F35-A746-DE8DB63617E6}"
 global IID_IAudioSessionManager2  := "{77AA99A0-1BD6-484F-8BC7-2C654C9A9B6F}"
 global IID_IAudioSessionControl2  := "{BFB7FF88-7239-4FC9-8FA2-07C950BE9C6D}"
 global IID_ISimpleAudioVolume     := "{87CE5498-68D6-44E5-9215-6DA47EF883D8}"
-
+global VolumeLogarithmic          := 1
 global DeviceMap := Map()
 
 PopulatePlaybackDevices() {
@@ -102,7 +102,8 @@ GetAudioSessionsForDevice(devicePtr) {
         ComCall(4, simpleVol, "Float*", &volScalar := 0)
         
         ; CONVERSION: Convert raw hardware scalar back to a perceived logarithmic slider UI value
-        sliderUIVal := Round(Sqrt(volScalar) * 100)
+        ;sliderUIVal := Round(Sqrt(volScalar) * 100)
+        sliderUIVal := Round((volScalar ** VolumeLogarithmic) * 100)
         
         sessions.Push({
             PID: pid,
@@ -118,7 +119,8 @@ SetAppVolume(simpleVol, sliderPercent) {
     sliderPercent := Max(0, Min(100, sliderPercent))
     
     ; LOGARITHMIC FIX: Convert the UI Slider (0-100) to a perceived exponential curve
-    scalarVol := (sliderPercent / 100.0) ** 2
+    ;scalarVol := (sliderPercent / 100.0) ** 2
+    scalarVol := (sliderPercent / 100.0) ** (1 / VolumeLogarithmic)
     
     ComCall(3, simpleVol, "Float", scalarVol, "Ptr", 0)
 }

@@ -1,6 +1,6 @@
 /************************************************************************
  * @description OSDCustom (Dynamic Styling & Multi-Column Grid Engine)
- * @version 6.13.1 (UpdateImageObject method )
+ * @version 6.13.2 (progressbar vertical offset )
  ***********************************************************************/
 
 #Requires AutoHotkey v2.0
@@ -469,7 +469,7 @@ class OSDCustom {
                 barH := (this.HasProp("ProgressBarHeight") && this.ProgressBarHeight > 0) ? this.ProgressBarHeight : 6
                 
                 ; Calculate centered vertical offset relative to the row's total text height
-                barY := cellY + (cellH - barH) / 2
+                barY := (cellY + (cellH - barH) / 2) + 1
                 ; --------------------------------
 
                 ctrl := this.MyGui.AddProgress(

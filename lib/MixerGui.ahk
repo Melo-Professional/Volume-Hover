@@ -74,10 +74,18 @@ RefreshSessionsForSelectedDevice() {
     DllCall("user32\RedrawWindow", "Ptr", MainGui.Hwnd, "Ptr", 0, "Ptr", 0, "UInt", 5)
 
     ; Minimal settings layout added directly to the scrolling child canvas
-    btnSettings := ChildGui.Add("Button", "x341 y18 w28 h28", "⚙")
-    btnSettings.OnEvent("Click", OpenSettingsWindow)
+    ChildGui.SetFont("s12", "Segoe UI")
+    ;btnSettings := ChildGui.Add("Button", "x341 y18 w28 h28", "⚙")
+    ;btnSettings := ChildGui.Add("Button", "x341 y18 w28 h28", "☰")
+    ;btnSettings := ChildGui.Add("Button", "x341 y18 w28 h28", "🔊")
+    ;btnSettings := ChildGui.Add("Button", "x341 y18 w28 h28", "🎧")
+    ;btnSettings := ChildGui.Add("Button", "x341 y18 w28 h28", "🗹")
+    ;btnSettings := ChildGui.Add("Button", "x341 y18 w28 h28", "☑️")
+    btnSettings := ChildGui.Add("Button", "x341 y18 w28 h28", "⫶☰")
+    btnSettings.OnEvent("Click", _HoverSettingsGUI)
     DynamicControls.Push(btnSettings)
 
+    ChildGui.SetFont("s9", "Segoe UI")
     deviceNames := PopulatePlaybackDevices()
     yPos := 25 ; starting position
     wWidth := 380
@@ -198,33 +206,52 @@ RefreshSessionsForSelectedDevice() {
     }
 }
 
-OpenSettingsWindow(*) {
+_HoverSettingsGUI(*) {
     global VisibleDevicesConfig
-    settingsGui := Gui("+Owner" MainGui.Hwnd " +ToolWindow", "Volume Hover Configuration")
-    settingsGui.SetFont("s10", "Segoe UI")
-    settingsGui.Add("Text", "x15 y10 w350", "Select playback devices to show:")
+    ;settingsGui := Gui("+Owner" MainGui.Hwnd " +ToolWindow", "Volume Hover Configuration")
+    HoverSettingsGui := Gui("+Owner" MainGui.Hwnd " +LastFound -MinimizeBox", "Show Playback Devices")
+    ;settingsGui.SetFont("s10", "Segoe UI")
+    HoverSettingsGui.SetFont("s13", Settings.GuiFontName)
+
+    ; Define layout constants
+    GuiWidth                     := 560
+    BtnWidth                     := 100
+    HoverSettingsGui.MarginX     := 50
+    HoverSettingsGui.MarginY     := 30
+
+    HoverSettingsGui.SetFont("s10 w850")
+    HoverSettingsGui.Add("Text", "vTitle xm w350", "Select playback devices to show:")
     
     deviceNames := PopulatePlaybackDevices()
     checkboxes := Map()
-    yOffset := 50
+    yOffset := 80
 
-    settingsGui.SetFont("s9", "Segoe UI")
+    HoverSettingsGui.SetFont("s11 w400")
     for name in deviceNames {
         isChecked := (VisibleDevicesConfig.Has(name) && VisibleDevicesConfig[name]) ? "Checked" : ""
-        chk := settingsGui.Add("Checkbox", "x20 y" yOffset " w340 " isChecked, "  " . name)
+        namelabel := (StrLen(name) > 52) ? SubStr(name, 1, 49) "..." : name
+        chk := HoverSettingsGui.Add("Checkbox", "xm+20 y" yOffset " w460 " isChecked, "  " . namelabel)
         checkboxes[name] := chk
-        yOffset += 35
+        yOffset += 40
     }
-
-    btnSave := settingsGui.Add("Button", "x140 y" (yOffset + 10) " w100 h25 Default", "&Save")
+ 
+    ; 6. Button OK
+    HoverSettingsGui.SetFont("s" Settings.GuiFontSizeMedium " w300", Settings.GuiFontName)
+    ; 6.1 align
+;        btnX := MyGui.MarginX ; left
+        btnX := (GuiWidth - BtnWidth) // 2 ; center
+;        btnX := GuiWidth - MyGui.MarginX - BtnWidth ; right
+    btnSave := HoverSettingsGui.AddButton("x" btnX " y" (yOffset + 20) " w" BtnWidth " h30 Default", "&Save")
     btnSave.OnEvent("Click", SavePreferences)
 
     if IsSet(ApplyThemeToGui) {
-        ApplyThemeToGui(settingsGui)
-        WatchedGUIs.Push(settingsGui)
+        ApplyThemeToGui(HoverSettingsGui)
+        WatchedGUIs.Push(HoverSettingsGui)
     }
 
-    settingsGui.Show("w380 h" (yOffset + 50))
+    ;settingsGui.Show("w380 h" (yOffset + 50))
+    HoverSettingsGui.Show("w" GuiWidth " h" (yOffset + 75))
+    btnSave.Focus()
     
     SavePreferences(*) {
         visibleList := []
@@ -243,7 +270,7 @@ OpenSettingsWindow(*) {
         if IsSet(SaveINI)
             SaveINI()
             
-        settingsGui.Destroy()
+        HoverSettingsGui.Destroy()
         RefreshSessionsForSelectedDevice()
     }
 }
