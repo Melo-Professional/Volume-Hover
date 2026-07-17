@@ -5,7 +5,10 @@ Controls application audio volumes instantly by
 - mouse wheel to current program under mouse pointer
 
 
-<img width="1917" height="1074" alt="image" src="https://github.com/user-attachments/assets/27dfeca4-1901-438a-b996-a17148f4396c" />
-<img width="1920" height="1078" alt="image" src="https://github.com/user-attachments/assets/e8384c92-ac31-4676-b73a-bf0193296c08" />
-<img width="384" height="718" alt="image" src="https://github.com/user-attachments/assets/d59d47c6-f364-4a41-9e5a-d9f47fcd0b3b" />
+<img width="608" height="1072" alt="image" src="https://github.com/user-attachments/assets/d4303f6e-f7eb-4631-9fa9-3db03a1e1161" />
+
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/59fd083a-b6b9-430c-9cca-eac72733a13f" />
+
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/a0c8f231-5f9c-41da-8f95-7acbbd5b94b8" />
+
 
