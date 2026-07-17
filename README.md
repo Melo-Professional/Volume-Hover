@@ -11,4 +11,7 @@ Controls application audio volumes instantly by
 
 <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/a0c8f231-5f9c-41da-8f95-7acbbd5b94b8" />
 
+<img width="1058" height="912" alt="image" src="https://github.com/user-attachments/assets/7057f222-818d-4a85-bb12-8def58edf9ee" />
+
+
 
