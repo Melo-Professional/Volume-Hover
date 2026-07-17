@@ -1,8 +1,8 @@
 /************************************************************************
  * @description Help GUI
  * @author Melo (melo@meloprofessional.com)
- * @date 2026/05/29
- * @version 1.4.0
+ * @date 2026/07/11
+ * @version 1.5.0
  ***********************************************************************/
 
 #Requires AutoHotkey v2.0
@@ -29,7 +29,7 @@ ShowHelpGUI() {
 
     ; 2. Title and Version
     MyGui.SetFont("s" Settings.GuiFontSizeBig " w700")
-    MyGui.Add("Text", "x+15 y28 vStrong_Title", App.Name)
+    MyGui.Add("Text", "x+15 yp vStrong_Title", App.Name)
 
     MyGui.SetFont("s" Settings.GuiFontSizeSmall " w400 ")
     MyGui.Add("Text", "y+2 vSmooth_Version", "Version " App.Version)

@@ -1,6 +1,6 @@
 /************************************************************************
  * @description OSDCustom (Dynamic Styling & Multi-Column Grid Engine)
- * @version 6.13.2 (progressbar vertical offset )
+ * @version 6.14.0 (MessageManager )
  ***********************************************************************/
 
 #Requires AutoHotkey v2.0
@@ -90,7 +90,11 @@ class OSDCustom {
         this.SlideOutCb := ObjBindMethod(this, "AnimateSlideOut")
         this.DestroyCb := ObjBindMethod(this, "Destroy")
 
-        OnMessage(0x001A, ObjBindMethod(this, "OnSettingChange"))
+        if IsSet(MessageManager) {
+            MessageManager.Register(0x001A, ObjBindMethod(this, "OnSettingChange"))
+        } else {
+            OnMessage(0x001A, ObjBindMethod(this, "OnSettingChange"))
+        }
     }
 
     ; --- Cell definition methods ---

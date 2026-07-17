@@ -49,3 +49,5 @@ SaveToINI.Push(
 RegisterArrayItems(SaveToINI)
 LoadINI()
 ;@endregion
+
+UseRegularReload := false

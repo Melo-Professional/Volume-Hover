@@ -7,11 +7,11 @@ global IsGuiVisible := false
 global TrayStartX := 0, TrayStartY := 0
 global TrayMouseX := 0, TrayMouseY := 0
 global TrayLeaveCount := 0
-global MainGui
+global MainGui := ""
 global ChildGui := ""
 
 ; Track scrolling properties
-global MaxGuiHeight := A_ScreenHeight
+global MaxGuiHeight := A_ScreenHeight - 80
 global VirtualGuiHeight := 0
 global CurrentScrollPos := 0
 global hovertimeout := 1000
@@ -43,21 +43,38 @@ CreateAudioMixerGui() {
     LoadDeviceConfig()
     
     ; Main container window (Acts as the viewing viewport frame)
-    MainGui := Gui("+AlwaysOnTop -Caption +ToolWindow +Owner +0x00200000")
+    MainGui := Gui("+AlwaysOnTop -Caption +ToolWindow +Owner")
     MainGui.SetFont("s9", "Segoe UI")
-    
+
     ; Child window (Holds all the actual buttons, text, and sliders)
     ChildGui := Gui("-Caption +Parent" MainGui.Hwnd)
-    ChildGui.SetFont("s9", "Segoe UI")
+    ChildGui.SetFont("cWhite s9", "Segoe UI")
+    
+    ; Initial application of the theme
+    FrostedTheme.Apply(MainGui, ChildGui)
     
     ; Monitor standard Windows vertical scroll updates
-    OnMessage(0x0115, WM_VSCROLL) ; WM_VSCROLL
+    ;OnMessage(0x0115, WM_VSCROLL)
+    MessageManager.Register(0x0115, WM_VSCROLL)
+    
     RefreshSessionsForSelectedDevice()
+    
+    ; Pre-warm DWM acrylic cache by briefly showing a 1-pixel sliver on-screen AND ACTIVATING it.
+    ; Without activation, Windows 11 refuses to compile the acrylic shader.
+    ; The 1-pixel trick prevents Windows from snapping the active window to 0,0.
+    FrostedTheme.ForceDWMCompilation(MainGui)
+    FrostedTheme.ForceDWMCompilation(ChildGui)
 }
 
 RefreshSessionsForSelectedDevice() {
     global MainGui, ChildGui, DynamicControls, DeviceMap, IsGuiVisible
-    global CurrentGuiHeight, TrayMouseX, TrayMouseY, MaxGuiHeight, VirtualGuiHeight, CurrentScrollPos
+    global CurrentGuiHeight, TrayMouseX, TrayMouseY, MaxGuiHeight, VirtualGuiHeight, CurrentScrollPos, GlobalPrevFocus
+    
+    ; If Gui doesn't exist yet, create it
+    if (MainGui == "" || !WinExist(MainGui.Hwnd)) {
+        CreateAudioMixerGui()
+        return
+    }
     
     ; Reset scroll position to top before rebuilding
     CurrentScrollPos := 0
@@ -74,14 +91,9 @@ RefreshSessionsForSelectedDevice() {
     DllCall("user32\RedrawWindow", "Ptr", MainGui.Hwnd, "Ptr", 0, "Ptr", 0, "UInt", 5)
 
     ; Minimal settings layout added directly to the scrolling child canvas
-    ChildGui.SetFont("s12", "Segoe UI")
-    ;btnSettings := ChildGui.Add("Button", "x341 y18 w28 h28", "⚙")
-    ;btnSettings := ChildGui.Add("Button", "x341 y18 w28 h28", "☰")
-    ;btnSettings := ChildGui.Add("Button", "x341 y18 w28 h28", "🔊")
-    ;btnSettings := ChildGui.Add("Button", "x341 y18 w28 h28", "🎧")
-    ;btnSettings := ChildGui.Add("Button", "x341 y18 w28 h28", "🗹")
-    ;btnSettings := ChildGui.Add("Button", "x341 y18 w28 h28", "☑️")
-    btnSettings := ChildGui.Add("Button", "x341 y18 w28 h28", "⫶☰")
+    ChildGui.SetFont("s14", "Segoe UI")
+    ;btnSettings := ChildGui.Add("Button", "x341 y18 w28 h28", "⫶☰")
+    btnSettings := ChildGui.Add("Text", "cWhite x341 y20 w28 h28", "⫶☰")
     btnSettings.OnEvent("Click", _HoverSettingsGUI)
     DynamicControls.Push(btnSettings)
 
@@ -99,12 +111,11 @@ RefreshSessionsForSelectedDevice() {
         sessions := GetAudioSessionsForDevice(devicePtr)
 
         if (sessions.Length > 0) {
-            ; Store both the name and its active sessions for the layout step
             ActiveDevices.Push({Name: deviceName, Sessions: sessions})
         }
     }
     
-    ; 2. Loop through the prepared visible devices
+    ; Loop through the prepared visible devices
     for index, device in ActiveDevices {
         lblDevice := ChildGui.Add("Text", "x15 y" yPos " w320 h20 +0x4000", StrUpper(device.Name))
         lblDevice.SetFont("q5 s8 Bold c0x0078D7")
@@ -115,25 +126,26 @@ RefreshSessionsForSelectedDevice() {
         
         for session in device.Sessions {
             SplitPath(session.ProgName, , , , &cleanProgName)
-            lblApp := ChildGui.Add("Text", "x20 y" yPos " w100 h20 +0x4000", cleanProgName)
-            sliderY := yPos - 7
+            lblApp := ChildGui.Add("Text", "x20 y" yPos " w100 h20 cWhite +0x4000", cleanProgName)
+            ;lblApp.SetFont("cWhite s9", "Segoe UI")
+            sliderY := yPos - 5
 
-            lblVol := ChildGui.Add("Text", "x338 y" yPos " w25 h20 Right", session.Volume)
+            lblVol := ChildGui.Add("Text", "x338 y" yPos " w25 h20 cWhite Right", session.Volume)
+            lblVol.SetFont("cWhite w600 s9", "Segoe UI")
             
-            ; Instantiate the ModernSlider. Omitted theme params = Auto mode!
+            ; Instantiate the ModernSlider
             sldVol := ModernSlider(ChildGui, "x125 y" sliderY " w215 h25", session.Volume, 0, 100, OnSliderChange.Bind(session.SimpleVol, lblVol))
             
             DynamicControls.Push(lblApp)
             DynamicControls.Push(lblVol)
             
             ; Push the underlying native AHK controls inside the class so the window destructor works
-            DynamicControls.Push(sldVol.track)
-            DynamicControls.Push(sldVol.thumb)
+            DynamicControls.Push(sldVol.sliderCtrl)
+            DynamicControls.Push(sldVol)
             
             yPos += 45 ; inter programs
         }
         
-        ; 3. CHECK: Only add space/divider if this is NOT the last visible device in our list
         if (index < ActiveDevices.Length) {
             yPos += 15 ; after programs
         }
@@ -159,23 +171,16 @@ RefreshSessionsForSelectedDevice() {
         NumPut("UInt", newHeight, si, 16)       ; nPage
         
         DllCall("user32\SetScrollInfo", "Ptr", MainGui.Hwnd, "Int", 1, "Ptr", si.Ptr, "Int", 1)
+        DllCall("user32\ShowScrollBar", "Ptr", MainGui.Hwnd, "Int", 1, "Int", 0)
     } else {
         newHeight := VirtualGuiHeight
         DllCall("user32\ShowScrollBar", "Ptr", MainGui.Hwnd, "Int", 1, "Int", 0)
     }
     
     CurrentGuiHeight := newHeight
-
-    if IsSet(ApplyThemeToGui) {
-        ApplyThemeToGui(MainGui)
-        ApplyThemeToGui(ChildGui)
-        WatchedGUIs.Push(MainGui)
-        WatchedGUIs.Push(ChildGui)
-    }
     
-    ; Resize the child canvas container to fit the total entries smoothly
-    ChildGui.Move(0, 0, wWidth, VirtualGuiHeight)
-    ChildGui.Show("NA")
+    ; Force the child window to anchor directly at (0,0) of the parent frame
+    ChildGui.Show("x0 y0 w" wWidth " h" VirtualGuiHeight " NA")
     
     if (IsGuiVisible) {
         MainGui.GetPos(&gx, &gy, &gw, &gh)
@@ -200,18 +205,25 @@ RefreshSessionsForSelectedDevice() {
         if (spawnX + wWidth > wr)
             spawnX := wr - wWidth
 
-        MainGui.Show("x" spawnX " y" spawnY " w" wWidth " h" newHeight " NoActivate")
+        ; GUI is already shown — just resize/reposition it in-place
+        MainGui.Move(spawnX, spawnY, wWidth, newHeight)
     } else {
-        MainGui.Move(,, wWidth, newHeight)
+        MainGui.Show("x-32000 y-32000 w" wWidth " h" newHeight " NoActivate")
     }
 }
 
 _HoverSettingsGUI(*) {
     global VisibleDevicesConfig
-    ;settingsGui := Gui("+Owner" MainGui.Hwnd " +ToolWindow", "Volume Hover Configuration")
+
+    transparent := true
+
     HoverSettingsGui := Gui("+Owner" MainGui.Hwnd " +LastFound -MinimizeBox", "Show Playback Devices")
-    ;settingsGui.SetFont("s10", "Segoe UI")
-    HoverSettingsGui.SetFont("s13", Settings.GuiFontName)
+
+    if transparent {
+        HoverSettingsGui.SetFont("cWhite s13", Settings.GuiFontName)
+    } else {
+        HoverSettingsGui.SetFont("s13", Settings.GuiFontName)
+    }
 
     ; Define layout constants
     GuiWidth                     := 560
@@ -230,30 +242,103 @@ _HoverSettingsGUI(*) {
     for name in deviceNames {
         isChecked := (VisibleDevicesConfig.Has(name) && VisibleDevicesConfig[name]) ? "Checked" : ""
         namelabel := (StrLen(name) > 52) ? SubStr(name, 1, 49) "..." : name
-        chk := HoverSettingsGui.Add("Checkbox", "xm+20 y" yOffset " w460 " isChecked, "  " . namelabel)
+        
+        ; Separated checkbox (no caption)
+        chk := HoverSettingsGui.Add("Checkbox", "xm+20 y" yOffset " w20 h20 " isChecked)
         checkboxes[name] := chk
+        
+        ; Separated description text
+        txtCtrl := HoverSettingsGui.Add("Text", "x+10 yp w430 h20 +BackgroundTrans", namelabel)
+        
+        ; Clicking the text toggles the checkbox
+        txtCtrl.OnEvent("Click", ((associatedCheckbox, *) => associatedCheckbox.Value := !associatedCheckbox.Value).Bind(chk))
+        
         yOffset += 40
     }
  
-    ; 6. Button OK
+    ; Button OK
     HoverSettingsGui.SetFont("s" Settings.GuiFontSizeMedium " w300", Settings.GuiFontName)
-    ; 6.1 align
-;        btnX := MyGui.MarginX ; left
-        btnX := (GuiWidth - BtnWidth) // 2 ; center
-;        btnX := GuiWidth - MyGui.MarginX - BtnWidth ; right
-    btnSave := HoverSettingsGui.AddButton("x" btnX " y" (yOffset + 20) " w" BtnWidth " h30 Default", "&Save")
+    btnX := (GuiWidth - BtnWidth) // 2 ; center
+
+    if transparent {
+;        HoverSettingsGui.SetFont("s" Settings.GuiFontSizeBig " C727272 w700", Settings.GuiFontName)
+        HoverSettingsGui.SetFont("s" Settings.GuiFontSizeBig " CWhite w700", Settings.GuiFontName)
+        btnSave := HoverSettingsGui.Add("Text", "x" btnX " y" (yOffset + 20) " w" BtnWidth " h30 Center 0x0200 Background282828 +Border", "SAVE")
+        btnSave.BypassTheme := true
+    } else {
+        HoverSettingsGui.SetFont("s" Settings.GuiFontSizeMedium " w300", Settings.GuiFontName)
+        btnSave := HoverSettingsGui.AddButton("x" btnX " y" (yOffset + 20) " w" BtnWidth " h30 Default", "&Save")
+    }
+
     btnSave.OnEvent("Click", SavePreferences)
 
-    if IsSet(ApplyThemeToGui) {
+    if transparent {
+        FrostedTheme.ApplyTransparencyToControls(HoverSettingsGui)
+        FrostedTheme.Apply(HoverSettingsGui)
+
+        isHovering := false
+        ;NormalColor := "727272"
+        NormalColor := "FFFFFF"
+        HoverColor  := "FFFFFF"
+
+        ;OnMessage(0x0200, OnMouseMoveHoverSettings)
+        MessageManager.Register(0x0200, OnMouseMoveHoverSettings)
+
+        OnMouseMoveHoverSettings(wParam, lParam, msg, hwnd) {
+;            if hwnd != HoverSettingsGui.Hwnd
+;                return
+            try {
+                if (!btnSave || !btnSave.Hwnd)
+                    return
+            } catch {
+                return
+            }
+            
+            if (hwnd == btnSave.Hwnd) {
+                ctrl := GuiCtrlFromHwnd(hwnd)
+
+                if (!isHovering) {
+                    isHovering := true
+                    
+                    TRACKMOUSEEVENT := Buffer(A_PtrSize == 8 ? 24 : 16, 0)
+                    NumPut("UInt", TRACKMOUSEEVENT.Size, TRACKMOUSEEVENT, 0)
+                    NumPut("UInt", 2,                    TRACKMOUSEEVENT, 4)
+                    NumPut("Ptr",  ctrl.Hwnd,          TRACKMOUSEEVENT, A_PtrSize == 8 ? 8 : 8)
+                    DllCall("TrackMouseEvent", "Ptr", TRACKMOUSEEVENT)
+                    
+                    ;OnMessage(0x02A3, OnMouseLeaveHoverSettings)
+                    MessageManager.Register(0x02A3, OnMouseLeaveHoverSettings)
+                }
+
+                if (ctrl == btnSave) {
+                    ctrl.SetFont("c" HoverColor)
+                    ctrl.Opt("+Background595858")
+                    return
+                }
+
+                DllCall("SetCursor", "Ptr", DllCall("LoadCursor", "Ptr", 0, "Ptr", 32649, "Ptr"))
+            }
+        }
+    } else {
         ApplyThemeToGui(HoverSettingsGui)
         WatchedGUIs.Push(HoverSettingsGui)
     }
 
-    ;settingsGui.Show("w380 h" (yOffset + 50))
+    HoverSettingsGui.OnEvent("Close", HoverSettingsGuiUnregister)
+    HoverSettingsGui.OnEvent("Escape", HoverSettingsGuiUnregister)
+
+    HoverSettingsGuiUnregister(*) {
+        MessageManager.Unregister(0x0200, OnMouseMoveHoverSettings)
+        MessageManager.Unregister(0x02A3, OnMouseLeaveHoverSettings)
+    }
+
     HoverSettingsGui.Show("w" GuiWidth " h" (yOffset + 75))
     btnSave.Focus()
     
     SavePreferences(*) {
+        ;OnMessage(0x0200, OnMouseMoveHoverSettings, 0)
+        MessageManager.Unregister(0x0200, OnMouseMoveHoverSettings)
+        MessageManager.Unregister(0x02A3, OnMouseLeaveHoverSettings)
         visibleList := []
         for name, chkControl in checkboxes {
             VisibleDevicesConfig[name] := chkControl.Value
@@ -272,6 +357,19 @@ _HoverSettingsGUI(*) {
             
         HoverSettingsGui.Destroy()
         RefreshSessionsForSelectedDevice()
+    }
+
+    OnMouseLeaveHoverSettings(wParam, lParam, msg, hwnd) {
+;        if hwnd != HoverSettingsGui.Hwnd
+;            return
+        try {
+            if (hwnd == btnSave.Hwnd) {
+                ctrl := GuiCtrlFromHwnd(hwnd)
+                try ctrl.SetFont("c" NormalColor)
+                try ctrl.Opt("+Background282828")
+                isHovering := false
+            }
+        }
     }
 }
 
@@ -296,7 +394,7 @@ OnTrayMessage(wParam, lParam, msg, hwnd) {
 }
 
 CheckIfStillHovered() {
-    global IsGuiVisible, TrayStartX, TrayStartY, TrayMouseX, TrayMouseY, TrayLeaveCount, CurrentGuiHeight
+    global IsGuiVisible, TrayStartX, TrayStartY, TrayMouseX, TrayMouseY, TrayLeaveCount, CurrentGuiHeight, GlobalPrevFocus
     CoordMode("Mouse", "Screen")
     MouseGetPos(&currentX, &currentY, &targetHwnd)
     
@@ -308,8 +406,13 @@ CheckIfStillHovered() {
 
     TrayMouseX := currentX, TrayMouseY := currentY
     
-    RefreshSessionsForSelectedDevice()
-    
+    ; Keep existing GUI, just trigger creation flow if it has not been instantiated
+    if (MainGui == "" || !WinExist(MainGui.Hwnd)) {
+        CreateAudioMixerGui()
+    } else {
+        RefreshSessionsForSelectedDevice()
+    }
+
     monitorNum := MonitorGetFromPoint(TrayMouseX, TrayMouseY)
     MonitorGetWorkArea(monitorNum, &wl, &wt, &wr, &wb)
     MonitorGet(monitorNum, &ml, &mt, &mr, &mb)
@@ -335,8 +438,15 @@ CheckIfStillHovered() {
     if (spawnX + w > wr)
         spawnX := wr - w
     
-    MainGui.Show("X" spawnX " Y" spawnY " w" w " h" h " NoActivate")
-    IsGuiVisible := true 
+    ; Acrylic is pre-applied at startup — just move the window into position
+    if (WinExist("A") != MainGui.Hwnd)
+        GlobalPrevFocus := WinExist("A")
+    
+    MainGui.Move(spawnX, spawnY, w, h)
+    IsGuiVisible := true
+
+    ; Activate window to ensure DWM applies the active acrylic backdrop (fixes opaque fallback)
+    WinActivate(MainGui.Hwnd)
     
     DllCall("user32\SetWindowPos", "Ptr", MainGui.Hwnd, "Ptr", -1, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x0043)
     DllCall("dwmapi\DwmSetWindowAttribute", "Ptr", MainGui.Hwnd, "UInt", 33, "Int*", 2, "UInt", 4)
@@ -346,7 +456,11 @@ CheckIfStillHovered() {
 }
 
 HideGuiWhenMouseLeaves() {
-    global IsGuiVisible, TrayMouseX, TrayMouseY, TrayLeaveCount
+    global IsGuiVisible, TrayMouseX, TrayMouseY, TrayLeaveCount, MainGui, ChildGui, hovertimeout, GlobalPrevFocus
+
+    if (MainGui == "" || !WinExist(MainGui.Hwnd))
+        return
+
     CoordMode("Mouse", "Screen")
     MouseGetPos(&mx, &my)
     MainGui.GetPos(&gx, &gy, &gw, &gh)
@@ -365,30 +479,38 @@ HideGuiWhenMouseLeaves() {
 }
 
 HideAudioMixerGui() {
-    global IsGuiVisible, TrayMouseX, TrayMouseY
+    global IsGuiVisible, TrayMouseX, TrayMouseY, MainGui, GlobalPrevFocus
+
     IsGuiVisible := false, TrayMouseX := 0, TrayMouseY := 0
     SetTimer(HideGuiWhenMouseLeaves, 0)
-    MainGui.Hide()
+    if (MainGui != "" && WinExist(MainGui.Hwnd)) {
+        MainGui.Move(-32000, -32000)
+        
+        ; Restore previous focus so the user's workflow isn't interrupted
+        if (IsSet(GlobalPrevFocus) && GlobalPrevFocus && WinExist(GlobalPrevFocus)) {
+            try WinActivate(GlobalPrevFocus)
+        }
+    }
 }
 
 WM_ACTIVATE(wParam, lParam, msg, hwnd) {
     global MainGui
-    if (!IsSet(MainGui))
+    if (MainGui == "" || !WinExist(MainGui.Hwnd))
         return
     if (wParam == 0 && hwnd == MainGui.Hwnd) {
         HideAudioMixerGui()
     }
 }
 
-; Adapted to accept the new dynamic value from the class directly
 OnSliderChange(simpleVol, lblVol, newVol, *) {
     lblVol.Text := newVol
     SetAppVolume(simpleVol, newVol)
 }
 
-; Simplified: Only handles canvas window scrolling now. The Slider handles its own volume scrolls!
 OnMouseWheel(wParam, lParam, msg, hwnd) {
     global MainGui, CurrentScrollPos, VirtualGuiHeight, CurrentGuiHeight
+    if (MainGui == "" || !WinExist(MainGui.Hwnd))
+        return
     
     if (VirtualGuiHeight > CurrentGuiHeight) {
         wheelDelta := (wParam << 32 >> 48)
@@ -400,13 +522,15 @@ OnMouseWheel(wParam, lParam, msg, hwnd) {
 
 ScrollGuiWindow(amount) {
     global MainGui, ChildGui, CurrentScrollPos, VirtualGuiHeight, CurrentGuiHeight
+    if (MainGui == "" || !WinExist(MainGui.Hwnd))
+        return
+        
     maxScroll := VirtualGuiHeight - CurrentGuiHeight
     newScroll := Max(0, Min(maxScroll, CurrentScrollPos + amount))
     
     if (newScroll != CurrentScrollPos) {
         CurrentScrollPos := newScroll
         
-        ; Physically slide the ChildGui panel up/down relative to parent viewport frame
         ChildGui.Move(0, -CurrentScrollPos)
         DllCall("user32\SetScrollPos", "Ptr", MainGui.Hwnd, "Int", 1, "Int", CurrentScrollPos, "Int", 1)
     }
@@ -414,7 +538,7 @@ ScrollGuiWindow(amount) {
 
 WM_VSCROLL(wParam, lParam, msg, hwnd) {
     global MainGui, CurrentScrollPos, VirtualGuiHeight, CurrentGuiHeight
-    if (hwnd != MainGui.Hwnd)
+    if (MainGui == "" || !WinExist(MainGui.Hwnd) || hwnd != MainGui.Hwnd)
         return
         
     action := wParam & 0xFFFF

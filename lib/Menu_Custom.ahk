@@ -9,12 +9,15 @@
 
 Menu_Custom() {
 
+    Global ChildGui, MainGui
+
     TrayMenu := A_TrayMenu
     MoreMenu := TrayMenu.HasProp("MoreMenu") ? TrayMenu.MoreMenu : ""
 
     ; Reload fix
-;    TrayMenu.Delete("Restart")
-;    TrayMenu.Insert("Exit", "Restart", (*) => Reload())
+
+    TrayMenu.Delete("Restart")
+    TrayMenu.Insert("Exit", "Restart", (*) => CustomReload())
     TrayMenu.ClickCount     := 2
 
     try MoreMenu.Delete("Suspend")
@@ -22,9 +25,6 @@ Menu_Custom() {
 
     TrayMenu.Insert("More", "Settings...", (*) => ShowSettingsGUI())
     TrayMenu.Insert("More", "Playback Devices...", (*) => _HoverSettingsGUI())
-
-
-
 
 
     ; Custom items
@@ -53,3 +53,11 @@ Menu_Custom() {
 
 ;A_TrayMenu.Delete()
 
+CustomReload(*) {
+;    Cleanup()
+    if UseRegularReload {
+        Reload()
+    } else {
+        ReloadClean()
+    }
+}

@@ -1,11 +1,10 @@
 /************************************************************************
  * @description Lib to record custom hotkeys
  * @author Melo
- * @date 2026/07/12
- * @version 1.1.0
+ * @date 2026/07/16
+ * @version 1.3.0 (Fix callback with recording )
  ***********************************************************************/
 
-#Requires AutoHotkey v2.0
 
 /* EXAMPLE
 
@@ -29,30 +28,26 @@ RunMyFunc2(thisHotkey) {
 }
 
 */
+
+#Requires AutoHotkey v2.0
+
 class HotkeyManager {
-    /**
-     * Binds a GUI Text control to act as an automatic Hotkey Input box.
-     * @param {Gui.Control} guiCtrl - The Text control object to modify.
-     * @param {String} defaultHotkey - The starting hotkey (e.g. "^!2" or "").
-     * @param {Func} callbackFunc - The function to trigger when the hotkey is pressed.
-     */
     static BindControl(guiCtrl, defaultHotkey, callbackFunc) {
-        ; guiCtrl.Opt("+Border BackgroundFFFFFF 0x200")
-        
         guiCtrl.DefineProp("CurrentHotkey", {Value: defaultHotkey})
         guiCtrl.DefineProp("ActionCallback", {Value: callbackFunc})
         
         guiCtrl.Text := "  " . this.FormatLabel(defaultHotkey)
         
         if (defaultHotkey != "") {
-            try Hotkey(defaultHotkey, callbackFunc, "On")
+            ; Wraps the live hotkey to explicitly trigger with isGuiUpdate = false
+            try Hotkey(defaultHotkey, (triggeredKey) => callbackFunc(triggeredKey, false), "On")
         }
         
         guiCtrl.OnEvent("Click", ObjBindMethod(this, "_OnControlClicked"))
     }
     
     static _OnControlClicked(guiCtrl, *) {
-        guiCtrl.Text := "Listening... (ESC to cancel)"
+        guiCtrl.Text := "  Listening... (ESC to Clear)"
         HotkeyRecorder.Start(ObjBindMethod(this, "_OnHotkeyCaptured", guiCtrl))
     }
     
@@ -60,7 +55,6 @@ class HotkeyManager {
         oldHotkey := guiCtrl.CurrentHotkey
         callbackFunc := guiCtrl.ActionCallback
         
-        ; FIX: Treat both explicit Escape ("") and aborted recordings ("Cancelled") as a CLEAR operation.
         if (hotkeyStr == "" || hotkeyStr == "Cancelled") {
             if (oldHotkey != "") {
                 try Hotkey(oldHotkey, "Off")
@@ -68,8 +62,8 @@ class HotkeyManager {
             guiCtrl.CurrentHotkey := ""
             guiCtrl.Text := "  " . this.FormatLabel("")
             
-            ; This calls your Action_KeyUp("") function to wipe it out from the INI file
-            callbackFunc("")
+            ; EXPLICITLY TELL the function: This is a GUI Update to CLEAR the hotkey
+            callbackFunc.Call("", true)
             return
         }
         
@@ -77,8 +71,8 @@ class HotkeyManager {
             guiCtrl.CurrentHotkey := hotkeyStr
             guiCtrl.Text := "  " . this.FormatLabel(hotkeyStr)
             
-            ; Call the callback function with the newly recorded string to save it to the INI
-            callbackFunc(hotkeyStr)
+            ; EXPLICITLY TELL the function: This is a GUI Update to SAVE the new hotkey
+            callbackFunc.Call(hotkeyStr, true)
                 
         } else {
             MsgBox("Failed to bind hotkey: " . this.FormatLabel(hotkeyStr), "Registration Error", "Icon!")
@@ -92,7 +86,6 @@ class HotkeyManager {
         }
             
         parts := []
-        
         for _, char in StrSplit(hotkeyStr) {
             if (char == "^")
                 parts.Push("CONTROL")
@@ -140,7 +133,8 @@ class HotkeyManager {
                 KeyWait(baseKey)
             }
 
-            Hotkey(hotkeyStr, callbackFunc, "On")
+            ; Wraps the newly registered hotkey so it also correctly triggers with isGuiUpdate = false
+            Hotkey(hotkeyStr, (triggeredKey) => callbackFunc(triggeredKey, false), "On")
             return true
         } catch {
             return false
@@ -170,10 +164,18 @@ class HotkeyRecorder {
         this.InputLogger.Start()
         
         this._mouseCb := ObjBindMethod(this, "_OnMouseEvents")
-        OnMessage(0x0201, this._mouseCb)
-        OnMessage(0x0204, this._mouseCb)
-        OnMessage(0x0207, this._mouseCb)
-        OnMessage(0x020A, this._mouseCb)
+
+        if IsSet(MessageManager) {
+            MessageManager.Register(0x0201, this._mouseCb)
+            MessageManager.Register(0x0204, this._mouseCb)
+            MessageManager.Register(0x0207, this._mouseCb)
+            MessageManager.Register(0x020A, this._mouseCb)
+        } else {
+            OnMessage(0x0201, this._mouseCb)
+            OnMessage(0x0204, this._mouseCb)
+            OnMessage(0x0207, this._mouseCb)
+            OnMessage(0x020A, this._mouseCb)
+        }
     }
     
     static Cancel() {
@@ -196,10 +198,17 @@ class HotkeyRecorder {
             this.InputLogger.Stop()
         }
         if (this._mouseCb) {
-            OnMessage(0x0201, this._mouseCb, 0)
-            OnMessage(0x0204, this._mouseCb, 0)
-            OnMessage(0x0207, this._mouseCb, 0)
-            OnMessage(0x020A, this._mouseCb, 0)
+            if IsSet(MessageManager) {
+                MessageManager.Unregister(0x0201, this._mouseCb)
+                MessageManager.Unregister(0x0204, this._mouseCb)
+                MessageManager.Unregister(0x0207, this._mouseCb)
+                MessageManager.Unregister(0x020A, this._mouseCb)
+            } else {
+                OnMessage(0x0201, this._mouseCb, 0)
+                OnMessage(0x0204, this._mouseCb, 0)
+                OnMessage(0x0207, this._mouseCb, 0)
+                OnMessage(0x020A, this._mouseCb, 0)
+            }
             this._mouseCb := ""
         }
     }

@@ -1,8 +1,8 @@
 /************************************************************************
  * @description About GUI
  * @author Melo (melo@meloprofessional.com)
- * @date 2026/06/22
- * @version 1.5.2
+ * @date 2026/07/16
+ * @version 1.6.0 (MessageManager )
  ***********************************************************************/
 
 #Requires AutoHotkey v2.0
@@ -30,9 +30,9 @@ ShowAboutGUI() {
     ; 2. Title and Version
     MyGui.SetFont("s" Settings.GuiFontSizeExtraBig " w700")
     if App.Name = App.NameCutted
-        MyGui.Add("Text", "x+15 y40 vStrong_Title", App.Name)
+        MyGui.Add("Text", "x+15 yp+10 vStrong_Title", App.Name)
     else
-        MyGui.Add("Text", "x+15 y28 vStrong_Title", App.NameCutted)
+        MyGui.Add("Text", "x+15 yp vStrong_Title", App.NameCutted)
 
     MyGui.SetFont("s" Settings.GuiFontSizeSmall " w400")
     MyGui.Add("Text", "y+2 vSmooth_Version", "Version " App.Version)
@@ -58,7 +58,11 @@ ShowAboutGUI() {
             CleanDestroy()
         }
 
-        OnMessage(0x0200, OnMouseMove)
+        if IsSet(MessageManager) {
+            MessageManager.Register(0x0200, OnMouseMove)
+        } else {
+            OnMessage(0x0200, OnMouseMove)
+        }
 
         OnMouseMove(wParam, lParam, msg, hwnd) {
             try {
@@ -79,7 +83,12 @@ ShowAboutGUI() {
                     NumPut("Ptr",  MyLink.Hwnd,          TRACKMOUSEEVENT, A_PtrSize == 8 ? 8 : 8)
                     DllCall("TrackMouseEvent", "Ptr", TRACKMOUSEEVENT)
                     
-                    OnMessage(0x02A3, OnMouseLeave)
+
+                    if IsSet(MessageManager) {
+                        MessageManager.Register(0x02A3, OnMouseLeave)
+                    } else {
+                        OnMessage(0x02A3, OnMouseLeave)
+                    }
                 }
                 DllCall("SetCursor", "Ptr", DllCall("LoadCursor", "Ptr", 0, "Ptr", 32649, "Ptr"))
             }
@@ -107,13 +116,24 @@ ShowAboutGUI() {
     OnMouseLeave(wParam, lParam, msg, hwnd) {
         try MyLink.SetFont("c" NormalColor)
         isHovering := false
-        OnMessage(0x02A3, OnMouseLeave, 0)
+
+        if IsSet(MessageManager) {
+            MessageManager.Unregister(0x02A3, OnMouseLeave)
+        } else {
+            OnMessage(0x02A3, OnMouseLeave, 0)
+        }
     }
 
     CleanDestroy(*) {
         if App.HasOwnProp("Github"){
-            OnMessage(0x0200, OnMouseMove, 0) 
-            OnMessage(0x02A3, OnMouseLeave, 0)
+
+            if IsSet(MessageManager) {
+                MessageManager.Unregister(0x0200, OnMouseMove)
+                MessageManager.Unregister(0x02A3, OnMouseLeave)
+            } else {
+                OnMessage(0x0200, OnMouseMove, 0)
+                OnMessage(0x02A3, OnMouseLeave, 0)
+            }
         }
         
         if IsFunctionDefined("RemoveGuiFromArray")

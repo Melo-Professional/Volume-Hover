@@ -15,6 +15,11 @@ ReloadWithArgs(callerName := "", paramValue := "") {
         }
     }
 
+    OnMessage(0x020A, OnMouseWheel, 0)
+    OnMessage(0x404,  OnTrayMessage, 0)
+    OnMessage(0x0006, WM_ACTIVATE, 0)
+    OnMessage(0x0115, WM_VSCROLL, 0)
+
     if A_IsCompiled {
         Run('"' A_ScriptFullPath '" /restart' argString)
     } else {

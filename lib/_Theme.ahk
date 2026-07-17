@@ -1,8 +1,8 @@
 /************************************************************************
  * @description Theme Library to apply light / dark / auto modes 
  * @author Melo (melo@meloprofessional.com)
- * @date 2026/07/05
- * @version 1.11.0
+ * @date 2026/07/16
+ * @version 1.13.0 (MessageManager )
  ***********************************************************************/
 
 #Requires AutoHotkey v2.0
@@ -79,13 +79,25 @@ ApplyThemeToGui(guiObj) {
     ; --- WM_CTLCOLORLISTBOX Handler (FIXED: Toggles cleanly between modes) ---
     static PrevOnCtlBound := 0
     if (PrevOnCtlBound) {
-        OnMessage(0x0134, PrevOnCtlBound, 0) ; Disables the old custom drawing handle
+
+        if IsSet(MessageManager) {
+            MessageManager.Unregister(0x0134, PrevOnCtlBound) ; Disables the old custom drawing handle
+        } else {
+            OnMessage(0x0134, PrevOnCtlBound, 0) ; Disables the old custom drawing handle
+        }
+
         PrevOnCtlBound := 0
     }
 
     if (isDark) {
         OnCtlBound := OnCtlColorListbox.Bind(ctrlBGR, textBGR)
-        OnMessage(0x0134, OnCtlBound, -1)
+
+        if IsSet(MessageManager) {
+            MessageManager.Register(0x0134, OnCtlBound, true)
+        } else {
+            OnMessage(0x0134, OnCtlBound, -1)
+        }
+
         PrevOnCtlBound := OnCtlBound
     }
 
@@ -257,10 +269,20 @@ ApplyTheme(ThemeMode := Settings.DesiredTheme) {
     Settings.DesiredTheme := ThemeMode
     
     if (ThemeMode == "Auto") {
-        OnMessage(0x1A, WindowsThemeChanged)
+        if IsSet(MessageManager) {
+            MessageManager.Register(0x031A, WindowsThemeChanged)
+        } else {
+            OnMessage(0x031A, WindowsThemeChanged)
+        }
+
         CurrentActualTheme := GetWindowsTheme()
     } else {
-        OnMessage(0x1A, WindowsThemeChanged, 0)
+        if IsSet(MessageManager) {
+            MessageManager.Unregister(0x031A, WindowsThemeChanged)
+        } else {
+            OnMessage(0x031A, WindowsThemeChanged, 0)
+        }
+
         CurrentActualTheme := ThemeMode
     }
     
