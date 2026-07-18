@@ -3,14 +3,14 @@
 /************************************************************************
  * @description Controls application audio volumes instantly by hovering over the Windows system tray icon.
  * @author Melo (melo@meloprofessional.com)
- * @date 2026/07/16
+ * @date 2026/07/18
  * @releasedate 2026/07/07
- * @version 1.2.5.0
+ * @version 1.3.101.0
  ***********************************************************************/
 
 AppName := "Volume Hover"
 ;@Ahk2Exe-Let U_AppName = %A_PriorLine%
-AppVersion := "1.2.5.0"
+AppVersion := "1.3.101.0"
 ;@Ahk2Exe-Let U_Version = %A_PriorLine%
 AppDescription := "Controls application audio volumes instantly by hovering over the Windows system tray icon."
 ;@Ahk2Exe-AddResource .\images\keyboard.ico, 209
@@ -48,13 +48,14 @@ A_HotkeyInterval := 1000
 #Include *i <_ModernSlider>
 ;#Include *i <_Color_Picker_Dialog>
 ;#Include *i <_ReloadWithArgs>
+#Include <_TitleBar>
 #Include *i <_FrostedTheme>
 #Include *i <_HotkeysRecorder>
 #Include *i <_SplashScreen>
 #Include *i <_About>
 ;#Include *i <_Help>
 #Include *i <_Menu>
-#Include *i <OD_Colors>
+#Include *i <_ODColors>
 
 
 #Include <Vars_Custom>
@@ -64,6 +65,7 @@ A_HotkeyInterval := 1000
 #Include <AudioSessions>
 #Include <OSDVolume>
 #Include <AppVolumeControl>
+#Include <SelectPlaybackDevicesGUI>
 #Include <MixerGui>
 
 ;@endregion
@@ -169,3 +171,4 @@ ToggleGui2(btnObj, *) {
 }
 */
 
+;ShowSettingsGUI()

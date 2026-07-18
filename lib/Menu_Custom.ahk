@@ -24,7 +24,7 @@ Menu_Custom() {
     try MoreMenu.Delete("Pause")
 
     TrayMenu.Insert("More", "Settings...", (*) => ShowSettingsGUI())
-    TrayMenu.Insert("More", "Playback Devices...", (*) => _HoverSettingsGUI())
+    TrayMenu.Insert("More", "Playback Devices...", (*) => SelectPlaybackDevicesGUI())
 
 
     ; Custom items

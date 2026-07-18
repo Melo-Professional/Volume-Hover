@@ -35,6 +35,59 @@
 ; This software is provided 'as-is', without any express or implied warranty.
 ; In no event will the authors be held liable for any damages arising from the use of this software.
 ; ======================================================================================================================
+
+/* 
+
+; 1. Initialize the custom drawing class
+OD_Colors.Init()
+
+; --- Configuration Options ---
+FontOptions := "Norm s12"
+FontName := "Segoe UI"
+OD_Colors.SetFont(FontOptions, FontName)
+
+; Set custom row height in pixels
+RowHeight := 32
+
+; 2. Create the GUI and tell Windows to treat this window as "Dark Mode"
+Win := Gui(, "Custom Styled DDL")
+Win.BackColor := "1E1E1E" 
+Win.SetFont(FontOptions, FontName)
+
+; Off-screen edit control to prevent initial focus blue highlight
+Dummy := Win.AddEdit("w0 h0 x-10 y-10")
+
+; DropDownList Options
+; +0x0210 activates Owner-Draw
+; We remove -Theme to let Windows render the container using the native dark style
+OD_DDL := " +0x0210"
+Items := ["Option 1", "Option 2", "Option 3", "Option 4", "Option 5", "Option 6", "Option 7", "Option 8"]
+
+; 'r8' matches the item count perfectly to avoid scrollbar tracking
+DDL := Win.AddDDL("xm w200 r20 Choose3" . OD_DDL, Items)
+
+; Define custom colors
+DDL.OwnerDraw := {
+    CB: 0x202020,  ; Medium Gray background
+    CT: 0xFFFFFF,  ; White text
+    SB: 0x0055D4,  ; Darker Blue highlight on hover
+    ST: 0xFFFFFF   ; White text on hover
+}
+
+; 3. Apply the native Windows Dark Mode theme to the dropdown container.
+; This instantly converts the white borders and white dropdown backgrounds to a sleek dark color!
+DllCall("uxtheme\SetWindowTheme", "Ptr", DDL.Hwnd, "Str", "DarkMode_CFD", "Ptr", 0)
+
+; 4. Set custom spacing/height
+SendMessage(0x0153, -1, RowHeight, DDL.Hwnd) ; Main closed box height
+SendMessage(0x0153, 0, RowHeight, DDL.Hwnd)  ; Expanded item heights
+
+; Force focus away on selection change to remove sticky blue highlights
+DDL.OnEvent("Change", (ctrl, *) => Dummy.Focus())
+
+Win.Show()
+ */
+
 Class OD_Colors {
    Static Call(*) => False
    Static Font := 0

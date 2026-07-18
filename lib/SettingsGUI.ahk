@@ -11,12 +11,18 @@ ShowSettingsGUI() {
     transparent := false
     transparent := true
     MyGuiTitle := App.Name . " Settings"
-    MyGuiOptions := "+LastFound"
+    MyGuiOptions := "+LastFound -Caption"
     Global SettingsGui := Gui(MyGuiOptions, MyGuiTitle)
 
+    CustomTitleBar.Attach(SettingsGui, {
+        Title: MyGuiTitle,
+        ShowIcon: true,
+        Min: true,
+        Max: false, ; Turn off maximize if you don't need it
+        Close: true
+    })
 
-
-
+        DllCall("dwmapi\DwmSetWindowAttribute", "Ptr", SettingsGui.Hwnd, "UInt", 33, "Int*", 2, "UInt", 4)
 
 
     if transparent {
@@ -25,13 +31,9 @@ ShowSettingsGUI() {
         SettingsGui.SetFont("s" Settings.GuiFontSizeMedium, Settings.GuiFontName)
     }
 
-
-
-
-
-; 1. Initialize the custom drawing class
-OD_Colors.Init()
-OD_Colors.SetFont("cWhite s" Settings.GuiFontSizeMedium, Settings.GuiFontName)
+    ; 1. Initialize the custom drawing class
+    OD_Colors.Init()
+    OD_Colors.SetFont("cWhite s" Settings.GuiFontSizeMedium, Settings.GuiFontName)
 
     ; Define layout constants
     GuiWidth                := 920
@@ -54,6 +56,7 @@ OD_Colors.SetFont("cWhite s" Settings.GuiFontSizeMedium, Settings.GuiFontName)
     SettingsGui.SetFont("s" Settings.GuiFontSizeSmall " w400 ")
     SettingsGui.Add("Text", "y+2 vSmooth_Version", "Version " App.Version)
  */
+
     ; HOTKEYS
         SettingsGui.SetFont("s10 w850")
         TitleHotkeys := SettingsGui.Add("Text", "xm y+30 w200", "HotKeys")
@@ -160,6 +163,7 @@ OD_Colors.SetFont("cWhite s" Settings.GuiFontSizeMedium, Settings.GuiFontName)
         SettingsGui.SetFont("s11 w400")
 ;        optUseOSD := SettingsGui.AddDDL("x" GuiWidth - SettingsGui.MarginX - 20 - 100 " yp-17 r7 w100 Choose" . StartingIndex, General.OSDList)
         optUseOSD := SettingsGui.AddDDL("x" GuiWidth - SettingsGui.MarginX - 20 - 100 " yp-17 r7 w100 +0x0210 Choose" . StartingIndex, General.OSDList)
+        optUseOSD.BypassTheme := true
 
     ; Monitor list
         OSDMonitorList := ["Auto"]
@@ -189,10 +193,10 @@ OD_Colors.SetFont("cWhite s" Settings.GuiFontSizeMedium, Settings.GuiFontName)
         SettingsGui.SetFont("s11 w400")
         ;optMonitor := SettingsGui.AddDDL("x" GuiWidth - SettingsGui.MarginX - 20 - 80 " yp-17 r12 w80 Choose" . StartingIndex, OSDMonitorList)
         optMonitor := SettingsGui.AddDDL("x" GuiWidth - SettingsGui.MarginX - 20 - 100 " yp-17 r12 w100 +0x0210 Choose" . StartingIndex, OSDMonitorList)
+        optMonitor.BypassTheme := true
 
         if (optUseOSD.Text = "Disable")
             optMonitor.Enabled := false
-
 
 
     ; Position
@@ -218,24 +222,16 @@ OD_Colors.SetFont("cWhite s" Settings.GuiFontSizeMedium, Settings.GuiFontName)
         SettingsGui.SetFont("s11 w400")
         ;optPosition := SettingsGui.AddDDL("x" GuiWidth - SettingsGui.MarginX - 20 - 100 " yp-17 r7 w100 Choose" . StartingIndex, General.OSDPositionList)
         optPosition := SettingsGui.AddDDL("x" GuiWidth - SettingsGui.MarginX - 20 - 100 " yp-17 r12 w100 +0x0210 Choose" . StartingIndex, General.OSDPositionList)
+        optPosition.BypassTheme := true
 
-for odctrl in [ optUseOSD, optMonitor, optPosition] {
- odctrl.OwnerDraw := {
-    CB: 0x202020,  ; Medium Gray background
-    CT: 0xFFFFFF,  ; White text
-    SB: 0x0055D4,  ; Darker Blue highlight on hover
-    ST: 0xFFFFFF   ; White text on hover
-}
-}
-
-
-
-;DllCall("uxtheme\SetWindowTheme", "Ptr", optPosition.Hwnd, "Str", "DarkMode_CFD", "Ptr", 0)
-
-;optPosition.BypassTheme := true
-
-
-
+        for odctrl in [ optUseOSD, optMonitor, optPosition] {
+            odctrl.OwnerDraw := {
+                CB: 0x202020,  ; background
+                CT: 0xFFFFFF,  ; text
+                SB: 0x2c2d2e,  ; background highlight on hover
+                ST: 0xFFFFFF   ; text on hover
+            }
+        }
 
         SettingsGui.SetFont("s" Settings.GuiFontSizeSmall " w400 ")
 
@@ -589,13 +585,17 @@ for odctrl in [ optUseOSD, optMonitor, optPosition] {
                     MessageManager.Register(0x02A3, OnMouseLeaveSettingsGUI)
                 }
 
-                if (ctrl == btnReset || ctrl == btnSave) {
+;                if (ctrl == btnReset || ctrl == btnSave) {
                     ctrl.SetFont("c" HoverColor)
                     ctrl.Opt("+Background595858")
-                    return
+;                    return
+;                }
+
+
+                if !(ctrl == btnReset || ctrl == btnSave) {
+                    DllCall("SetCursor", "Ptr", DllCall("LoadCursor", "Ptr", 0, "Ptr", 32649, "Ptr"))
                 }
 
-                DllCall("SetCursor", "Ptr", DllCall("LoadCursor", "Ptr", 0, "Ptr", 32649, "Ptr"))
             }
         }
     }

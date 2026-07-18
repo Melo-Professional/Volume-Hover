@@ -2,8 +2,8 @@
  * @description Acrylic Theme
  * @author Melo (melo@meloprofessional.com)
  * @credits Owhs at https://www.autohotkey.com/boards/viewtopic.php?style=2&p=617944#p617944
- * @date 2026/07/16
- * @version 1.1.0
+ * @date 2026/07/18
+ * @version 1.2.0
  ***********************************************************************/
 
 
@@ -134,14 +134,15 @@ class FrostedTheme {
         ; DWM optimizes out calls if the value hasn't changed. We must set it to DWMSBT_NONE (1)
         ; before setting it back to Acrylic (3) to guarantee DWM throws away the broken opaque 
         ; surface and compiles a fresh acrylic shader when the OS theme changes.
-        DllCall("dwmapi\DwmSetWindowAttribute", "Ptr", hwnd, "UInt", 38, "Int*", 1, "UInt", 4)
+;        DllCall("dwmapi\DwmSetWindowAttribute", "Ptr", hwnd, "UInt", 38, "Int*", 1, "UInt", 4)
         
         ; Dark titlebar (DWMWA_USE_IMMERSIVE_DARK_MODE)
-        DllCall("dwmapi\DwmSetWindowAttribute", "Ptr", hwnd, "UInt", 20, "Int*", 1, "UInt", 4)
+;        DllCall("dwmapi\DwmSetWindowAttribute", "Ptr", hwnd, "UInt", 20, "Int*", 1, "UInt", 4)
 
-        ; Acrylic backdrop (DWMWA_SYSTEMBACKDROP_TYPE = 3)
+         ; Acrylic backdrop (DWMWA_SYSTEMBACKDROP_TYPE = 3)
         DllCall("dwmapi\DwmSetWindowAttribute", "Ptr", hwnd, "UInt", 38, "Int*", 3, "UInt", 4)
 
+/*
         ; Extend DWM frame into entire client area so acrylic fills the window
         margins := Buffer(16, 0)
         NumPut("Int", -1, margins, 0)
@@ -149,6 +150,48 @@ class FrostedTheme {
         NumPut("Int", -1, margins, 8)
         NumPut("Int", -1, margins, 12)
         DllCall("dwmapi\DwmExtendFrameIntoClientArea", "Ptr", hwnd, "Ptr", margins)
+ */
+
+
+    ; ACCENT_STATE
+    ; 0 = Disabled
+    ; 1 = Gradient
+    ; 2 = TransparentGradient
+    ; 3 = BlurBehind
+    ; 4 = AcrylicBlurBehind
+    ; 5 = HostBackdrop (Win10 1809+)
+
+    ACCENT_ENABLE_ACRYLICBLURBEHIND := 1
+    ACCENT_ENABLE_ACRYLICBLURBEHIND := 5
+    ACCENT_ENABLE_ACRYLICBLURBEHIND := 2
+    ACCENT_ENABLE_ACRYLICBLURBEHIND := 3
+    ACCENT_ENABLE_ACRYLICBLURBEHIND := 4
+
+;    tint := "0x80444444"
+;    tint := "0x80202020"
+;    tint := "0x48202020"
+;    tint := "0x630f0f0f"
+    tint := "0x6c3d3d3d"
+    tint := "0x630f0f0f"
+    tint := "0x340f0f0f"
+
+    accent := Buffer(16, 0)
+    NumPut("Int", ACCENT_ENABLE_ACRYLICBLURBEHIND, accent, 0)
+    NumPut("Int", 0, accent, 4)          ; AccentFlags
+    NumPut("UInt", tint, accent, 8)      ; GradientColor = AABBGGRR
+    NumPut("Int", 0, accent, 12)         ; AnimationId
+
+    data := Buffer(A_PtrSize * 2 + 4, 0)
+    NumPut("Int", 19, data, 0)                           ; WCA_ACCENT_POLICY
+    NumPut("Ptr", accent.Ptr, data, A_PtrSize)
+    NumPut("UInt", accent.Size, data, A_PtrSize * 2)
+
+    DllCall(
+        "user32\SetWindowCompositionAttribute",
+        "Ptr", guiObj.Hwnd,
+        "Ptr", data
+    )
+
 
         ; Black background: DWM treats pure black as transparent to reveal the acrylic
         guiObj.BackColor := "000000"
@@ -156,6 +199,8 @@ class FrostedTheme {
         ; Force DWM to recompose
         DllCall("dwmapi\DwmFlush")
         DllCall("user32\RedrawWindow", "Ptr", hwnd, "Ptr", 0, "Ptr", 0, "UInt", 0x0587)
+
+
 
         ; Apply black background to associated child window
         if (this.ChildGuis.Has(hwnd)) {
