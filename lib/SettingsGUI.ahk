@@ -1,39 +1,60 @@
 /************************************************************************
  * @description Settings
  * @author Melo (melo@meloprofessional.com)
- * @date 2026/07/10
- * @version 1.0.0
+ * @date 2026/07/19
+ * @version 1.0.1
  ***********************************************************************/
 
 ShowSettingsGUI() {
-    global Settings, General, VolumeOSDNormal, VolumeOSDSlim
+    global Settings, General, VolumeOSDNormal, VolumeOSDSlim, SettingsGui
 
-    transparent := false
-    transparent := true
+
+try {
+        if (HasBase(SettingsGui, Gui.Prototype) && WinExist(SettingsGui)) {
+            WinActivate(SettingsGui)
+            return
+        }
+    } catch {
+    }
+
+
     MyGuiTitle := App.Name . " Settings"
-    MyGuiOptions := "+LastFound -Caption"
-    Global SettingsGui := Gui(MyGuiOptions, MyGuiTitle)
+    UseAcrylicGUI := true
 
-    CustomTitleBar.Attach(SettingsGui, {
+    if UseAcrylicGUI {
+        MyGuiOptions := "+LastFound -Caption"
+    } else {
+        MyGuiOptions := "+LastFound -SysMenu"
+    }
+
+    SettingsGui := Gui(MyGuiOptions, MyGuiTitle)
+
+    titlebar := CustomTitleBar.Attach(SettingsGui, {
         Title: MyGuiTitle,
         ShowIcon: true,
         Min: true,
-        Max: false, ; Turn off maximize if you don't need it
+        Max: false,
         Close: true
     })
 
-        DllCall("dwmapi\DwmSetWindowAttribute", "Ptr", SettingsGui.Hwnd, "UInt", 33, "Int*", 2, "UInt", 4)
+;    titlebar.BypassTheme := false
 
+    DllCall("dwmapi\DwmSetWindowAttribute", "Ptr", SettingsGui.Hwnd, "UInt", 33, "Int*", 2, "UInt", 4)
 
-    if transparent {
-        SettingsGui.SetFont("cWhite s" Settings.GuiFontSizeMedium, Settings.GuiFontName)
+    TextNormalColor := "CCCCCC"
+    TextHoverColor  := "FFFFFF"
+    BGroundNormalColor  := "1b1b1b"
+    BGroundHoverColor  := "313131"
+
+    if UseAcrylicGUI {
+        SettingsGui.SetFont("c" TextNormalColor " s" Settings.GuiFontSizeMedium, Settings.GuiFontName)
     } else {
         SettingsGui.SetFont("s" Settings.GuiFontSizeMedium, Settings.GuiFontName)
     }
 
     ; 1. Initialize the custom drawing class
     OD_Colors.Init()
-    OD_Colors.SetFont("cWhite s" Settings.GuiFontSizeMedium, Settings.GuiFontName)
+    OD_Colors.SetFont("c" TextNormalColor " s" Settings.GuiFontSizeMedium, Settings.GuiFontName)
 
     ; Define layout constants
     GuiWidth                := 920
@@ -63,24 +84,30 @@ ShowSettingsGUI() {
         TitleHotkeys.ThemeStyle := "Strong"
 
         SettingsGui.SetFont("s10 w600")
-        SettingsGui.Add("Text", "xm+20 y+10 w500", "Change volume of foreground program with keyboard")
-        
+        SettingsGui.Add("Text", "xm+20 y+30 w500", "Control foreground app volume")
+        SettingsGui.SetFont("s13 w100 norm")
+        Hot1Desc := SettingsGui.Add("Text", "xm+25 y+0 0x0200", "ⓘ")
+        Hot1Desc.ThemeStyle := "Smooth"
+        SettingsGui.SetFont("s9 w100 norm Italic")
+        Hot1Desc := SettingsGui.Add("Text", "x+8 yp+4 w300 0x0200", "suggestion: use keyboard")
+        Hot1Desc.ThemeStyle := "Smooth"
+
         if A_IsCompiled {
             SettingsGui.Add("Picture", "xm+20 y+30 w24 h-1 Icon-209", A_ScriptFullPath)
         } else {
             SettingsGui.Add("Picture", "xm+20 y+30 w24 h-1", A_ScriptDir . "\images\keyboard.ico")
         }
 
-        SettingsGui.SetFont("s11 w400")
+        SettingsGui.SetFont("s11 w400 Norm")
         SettingsGui.Add("Text", "x+20 yp-7 w200", "Volume Up")
         SettingsGui.SetFont("s9 w100")
-        Hot1Desc := SettingsGui.Add("Text", "y+1 w300", "Increase volume of the active program")
+        Hot1Desc := SettingsGui.Add("Text", "y+1 w300", "Increase the active app volume")
         Hot1Desc.ThemeStyle := "Smooth"
-        SettingsGui.SetFont("s8 w400")
+        SettingsGui.SetFont("s8 w800")
         ;KeyUp := SettingsGui.Add("Button", "x" GuiWidth - SettingsGui.MarginX - 20 - 240 " yp-18 h32 w240")
-        KeyUp := SettingsGui.Add("Text", "x" GuiWidth - SettingsGui.MarginX - 20 - 240 " yp-18 h32 w240 Center 0x0200 Background282828 +Border")
-        HotkeyManager.BindControl(KeyUp, General.KeyUp, Action_KeyUp)
-        KeyUp.BypassTheme := true
+        Global optKeyUp := SettingsGui.Add("Text", "x" GuiWidth - SettingsGui.MarginX - 20 - 240 " yp-18 h32 w240 Center 0x0200 Background" BGroundNormalColor " +Border")
+        HotkeyManager.BindControl(optKeyUp, General.KeyUp, VolUp_ActiveWin)
+        optKeyUp.BypassTheme := true
 
         if A_IsCompiled {
             SettingsGui.Add("Picture", "xm+20 y+30 w24 h-1 Icon-209", A_ScriptFullPath)
@@ -91,16 +118,22 @@ ShowSettingsGUI() {
         SettingsGui.SetFont("s11 w400")
         SettingsGui.Add("Text", "x+20 yp-7 w200", "Volume Down")
         SettingsGui.SetFont("s9 w100")
-        Hot2Desc := SettingsGui.Add("Text", "y+1 w300", "Decrease volume of the active program")
+        Hot2Desc := SettingsGui.Add("Text", "y+1 w300", "Decrease the active app volume")
         Hot2Desc.ThemeStyle := "Smooth"
-        SettingsGui.SetFont("s8 w400")
+        SettingsGui.SetFont("s8 w800")
         ;KeyDown := SettingsGui.Add("Button", "x" GuiWidth - SettingsGui.MarginX - 20 - 240 " yp-18 h32 w240")
-        KeyDown := SettingsGui.Add("Text", "x" GuiWidth - SettingsGui.MarginX - 20 - 240 " yp-18 h32 w240 Center 0x0200 Background282828 +Border")
-        HotkeyManager.BindControl(KeyDown, General.KeyDown, Action_KeyDown)
-        KeyDown.BypassTheme := true
+        Global optKeyDown := SettingsGui.Add("Text", "x" GuiWidth - SettingsGui.MarginX - 20 - 240 " yp-18 h32 w240 Center 0x0200 Background" BGroundNormalColor " +Border")
+        HotkeyManager.BindControl(optKeyDown, General.KeyDown, VolDown_ActiveWin)
+        optKeyDown.BypassTheme := true
 
         SettingsGui.SetFont("s10 w600")
-        SettingsGui.Add("Text", "xm+20 y+25 w500", "Change volume of any program under mouse pointer")
+        SettingsGui.Add("Text", "xm+20 y+40 w500", "Control hovered app volume")
+        SettingsGui.SetFont("s13 w100 norm")
+        Hot1Desc := SettingsGui.Add("Text", "xm+25 y+0 0x0200", "ⓘ")
+        Hot1Desc.ThemeStyle := "Smooth"
+        SettingsGui.SetFont("s9 w100 norm Italic")
+        Hot1Desc := SettingsGui.Add("Text", "x+8 yp+4 w300", "suggestion: use keyboard + mouse wheel")
+        Hot1Desc.ThemeStyle := "Smooth"
 
         if A_IsCompiled {
             SettingsGui.Add("Picture", "xm+20 y+30 w24 h-1 Icon-210", A_ScriptFullPath)
@@ -108,16 +141,16 @@ ShowSettingsGUI() {
             SettingsGui.Add("Picture", "xm+20 y+30 w24 h-1", A_ScriptDir . "\images\mouse.ico")
         }
 
-        SettingsGui.SetFont("s11 w400")
+        SettingsGui.SetFont("s11 w400 Norm")
         SettingsGui.Add("Text", "x+20 yp-7 w200", "Volume Up")
         SettingsGui.SetFont("s9 w100")
-        Hot3Desc := SettingsGui.Add("Text", "y+1 w300", "Increase volume (suggestion: use mouse wheel)")
+        Hot3Desc := SettingsGui.Add("Text", "y+1 w380", "Increase the volume of the app under the mouse")
         Hot3Desc.ThemeStyle := "Smooth"
-        SettingsGui.SetFont("s8 w400")
+        SettingsGui.SetFont("s8 w800")
         ;MouseUp := SettingsGui.Add("Button", "x" GuiWidth - SettingsGui.MarginX - 20 - 240 " yp-18 h32 w240")
-        MouseUp := SettingsGui.Add("Text", "x" GuiWidth - SettingsGui.MarginX - 20 - 240 " yp-18 h32 w240 Center 0x0200 Background282828 +Border")
-        HotkeyManager.BindControl(MouseUp, General.MouseUp, Action_MouseUp)
-        MouseUp.BypassTheme := true
+        Global optMouseUp := SettingsGui.Add("Text", "x" GuiWidth - SettingsGui.MarginX - 20 - 240 " yp-18 h32 w240 Center 0x0200 Background" BGroundNormalColor " +Border")
+        HotkeyManager.BindControl(optMouseUp, General.MouseUp, VolUp_HoverWin)
+        optMouseUp.BypassTheme := true
 
         if A_IsCompiled {
             SettingsGui.Add("Picture", "xm+20 y+30 w24 h-1 Icon-210", A_ScriptFullPath)
@@ -127,17 +160,17 @@ ShowSettingsGUI() {
         SettingsGui.SetFont("s11 w400")
         SettingsGui.Add("Text", "x+20 yp-7 w200", "Volume Down")
         SettingsGui.SetFont("s9 w100")
-        Hot4Desc := SettingsGui.Add("Text", "y+1 w300", "Decrease volume (suggestion: use mouse wheel)")
+        Hot4Desc := SettingsGui.Add("Text", "y+1 w380", "Decrease the volume of the app under the mouse")
         Hot4Desc.ThemeStyle := "Smooth"
-        SettingsGui.SetFont("s8 w400")
+        SettingsGui.SetFont("s8 w800")
         ;MouseDown := SettingsGui.Add("Button", "x" GuiWidth - SettingsGui.MarginX - 20 - 240 " yp-18 h32 w240")
-        MouseDown := SettingsGui.Add("Text", "x" GuiWidth - SettingsGui.MarginX - 20 - 240 " yp-18 h32 w240 Center 0x0200 Background282828 +Border")
-        HotkeyManager.BindControl(MouseDown, General.MouseDown, Action_MouseDown)
-        MouseDown.BypassTheme := true
+        Global optMouseDown := SettingsGui.Add("Text", "x" GuiWidth - SettingsGui.MarginX - 20 - 240 " yp-18 h32 w240 Center 0x0200 Background" BGroundNormalColor " +Border")
+        HotkeyManager.BindControl(optMouseDown, General.MouseDown, VolDown_HoverWin)
+        optMouseDown.BypassTheme := true
 
     ; OSD
         SettingsGui.SetFont("s10 w850")
-        TitleUseOSD := SettingsGui.Add("Text", "xm y+30 w200", "On Screen Display")
+        TitleUseOSD := SettingsGui.Add("Text", "xm y+70 w200", "On Screen Display")
         TitleUseOSD.ThemeStyle := "Strong"
 
     ; Use OSD
@@ -162,8 +195,8 @@ ShowSettingsGUI() {
         UseOSDDesc.ThemeStyle := "Smooth"
         SettingsGui.SetFont("s11 w400")
 ;        optUseOSD := SettingsGui.AddDDL("x" GuiWidth - SettingsGui.MarginX - 20 - 100 " yp-17 r7 w100 Choose" . StartingIndex, General.OSDList)
-        optUseOSD := SettingsGui.AddDDL("x" GuiWidth - SettingsGui.MarginX - 20 - 100 " yp-17 r7 w100 +0x0210 Choose" . StartingIndex, General.OSDList)
-        optUseOSD.BypassTheme := true
+        Global optUseOSD := SettingsGui.AddDDL("x" GuiWidth - SettingsGui.MarginX - 20 - 100 " yp-17 r7 w100 +0x0210 Choose" . StartingIndex, General.OSDList)
+        ;optUseOSD.BypassTheme := true
 
     ; Monitor list
         OSDMonitorList := ["Auto"]
@@ -192,8 +225,8 @@ ShowSettingsGUI() {
         MonitorDesc.ThemeStyle := "Smooth"
         SettingsGui.SetFont("s11 w400")
         ;optMonitor := SettingsGui.AddDDL("x" GuiWidth - SettingsGui.MarginX - 20 - 80 " yp-17 r12 w80 Choose" . StartingIndex, OSDMonitorList)
-        optMonitor := SettingsGui.AddDDL("x" GuiWidth - SettingsGui.MarginX - 20 - 100 " yp-17 r12 w100 +0x0210 Choose" . StartingIndex, OSDMonitorList)
-        optMonitor.BypassTheme := true
+        Global optMonitor := SettingsGui.AddDDL("x" GuiWidth - SettingsGui.MarginX - 20 - 100 " yp-17 r12 w100 +0x0210 Choose" . StartingIndex, OSDMonitorList)
+        ;optMonitor.BypassTheme := true
 
         if (optUseOSD.Text = "Disable")
             optMonitor.Enabled := false
@@ -221,15 +254,15 @@ ShowSettingsGUI() {
         PosDesc.ThemeStyle := "Smooth"
         SettingsGui.SetFont("s11 w400")
         ;optPosition := SettingsGui.AddDDL("x" GuiWidth - SettingsGui.MarginX - 20 - 100 " yp-17 r7 w100 Choose" . StartingIndex, General.OSDPositionList)
-        optPosition := SettingsGui.AddDDL("x" GuiWidth - SettingsGui.MarginX - 20 - 100 " yp-17 r12 w100 +0x0210 Choose" . StartingIndex, General.OSDPositionList)
-        optPosition.BypassTheme := true
+        Global optPosition := SettingsGui.AddDDL("x" GuiWidth - SettingsGui.MarginX - 20 - 100 " yp-17 r12 w100 +0x0210 Choose" . StartingIndex, General.OSDPositionList)
+        ;optPosition.BypassTheme := true
 
         for odctrl in [ optUseOSD, optMonitor, optPosition] {
             odctrl.OwnerDraw := {
-                CB: 0x202020,  ; background
-                CT: 0xFFFFFF,  ; text
-                SB: 0x2c2d2e,  ; background highlight on hover
-                ST: 0xFFFFFF   ; text on hover
+                CB: 0x1b1b1b,  ; background
+                CT: 0xF3F3F3,  ; text
+                SB: 0x363636,  ; background highlight on hover
+                ST: 0xF3F3F3   ; text on hover
             }
         }
 
@@ -244,10 +277,10 @@ ShowSettingsGUI() {
                 btnX := ((GuiWidth // 2) - BtnWidth - 20)
         ;        btnX := GuiWidth - SettingsGui.MarginX - BtnWidth ; right
             
-            if transparent {
+            if UseAcrylicGUI {
 ;                SettingsGui.SetFont("s" Settings.GuiFontSizeBig " C727272 w700", Settings.GuiFontName)
                 SettingsGui.SetFont("s" Settings.GuiFontSizeBig " CWhite w700", Settings.GuiFontName)
-                btnReset := SettingsGui.Add("Text", "x" btnX " y+75 w" BtnWidth " h30 Center 0x0200 Background282828 +Border", "RESET")
+                btnReset := SettingsGui.Add("Text", "x" btnX " y+75 w" BtnWidth " h30 Center 0x0200 Background" BGroundNormalColor " +Border", "RESET")
                 btnReset.BypassTheme := true
             } else {
                 SettingsGui.SetFont("s" Settings.GuiFontSizeMedium " w300", Settings.GuiFontName)
@@ -263,10 +296,10 @@ ShowSettingsGUI() {
                 btnX := ((GuiWidth // 2) + 20)
         ;        btnX := GuiWidth - SettingsGui.MarginX - BtnWidth ; right
 
-            if transparent {
+            if UseAcrylicGUI {
 ;                SettingsGui.SetFont("s" Settings.GuiFontSizeBig " C727272 w700", Settings.GuiFontName)
                 SettingsGui.SetFont("s" Settings.GuiFontSizeBig " CWhite w700", Settings.GuiFontName)
-                btnSave := SettingsGui.Add("Text", "x" btnX " yp w" BtnWidth " h30 Center 0x0200 Background282828 +Border", "OK")
+                btnSave := SettingsGui.Add("Text", "x" btnX " yp w" BtnWidth " h30 Center 0x0200 Background" BGroundNormalColor " +Border", "OK")
                 btnSave.BypassTheme := true
             } else {
                 SettingsGui.SetFont("s" Settings.GuiFontSizeMedium " w300", Settings.GuiFontName)
@@ -274,22 +307,6 @@ ShowSettingsGUI() {
             }
 
             btnSave.OnEvent("Click", CleanDestroy)
-
-
-    if transparent {
-        ApplyTransparencyToControls(SettingsGui)
-        FrostedTheme.Apply(SettingsGui)
-    } else {
-        ApplyThemeToGui(SettingsGui)
-        WatchedGUIs.Push(SettingsGui)
-    }
-
-    optUseOSD.OnEvent("Change", ActionsUseOSD)
-    optMonitor.OnEvent("Change", ActionsMonitor)
-    optPosition.OnEvent("Change", ActionsPosition)
-
-    SettingsGui.OnEvent("Close", CleanDestroy)
-    SettingsGui.OnEvent("Escape", CleanDestroy)
 
     SendMessage(0x0153, -1, 24, optUseOSD)
     SendMessage(0x0153, 0, 30, optUseOSD)
@@ -299,6 +316,25 @@ ShowSettingsGUI() {
 
     SendMessage(0x0153, -1, 24, optPosition)
     SendMessage(0x0153, 0, 30, optPosition)
+
+;        WatchedGUIs.Push(SettingsGui)
+
+    if UseAcrylicGUI {
+        ApplyThemeToGui(SettingsGui, "Dark")
+;        ApplyTransparencyToControls(SettingsGui)
+        FrostedTheme.Apply(SettingsGui)
+    } else {
+        ApplyThemeToGui(SettingsGui)
+        WatchedGUIs.Push(SettingsGui)
+    }
+ 
+    optUseOSD.OnEvent("Change", ActionsUseOSD)
+    optMonitor.OnEvent("Change", ActionsMonitor)
+    optPosition.OnEvent("Change", ActionsPosition)
+
+    SettingsGui.OnEvent("Close", CleanDestroy)
+    SettingsGui.OnEvent("Escape", CleanDestroy)
+
 
     SettingsGui.Show("w" GuiWidth)
     btnSave.Focus()
@@ -355,77 +391,13 @@ ShowSettingsGUI() {
         SettingsShowOSD("Program", 50)
     }
 
-    Action_KeyUp(newHotkey := "", isGuiUpdate := false) {
-        global General
 
-        if (isGuiUpdate) {
-            General.KeyUp := newHotkey
-            SaveINI()
-            EnableDisable()
-            return
-        }
-        AppVolumeControl.AdjustVolumeByActiveWindow(5)
-    }
 
-    Action_KeyDown(newHotkey := "", isGuiUpdate := false) {
-        global General
-
-        if (isGuiUpdate) {
-            General.KeyDown := newHotkey
-            SaveINI()
-            EnableDisable()
-            return
-        }
-        AppVolumeControl.AdjustVolumeByActiveWindow(-5)
-    }
-
-    Action_MouseUp(newHotkey := "", isGuiUpdate := false) {
-        global General
-
-        if (isGuiUpdate) {
-            General.MouseUp := newHotkey
-            SaveINI()
-            EnableDisable()
-            return
-        }
-        AppVolumeControl.AdjustVolumeByMouse(5)
-    }
-
-    Action_MouseDown(newHotkey := "", isGuiUpdate := false) {
-        global General
-
-        if (isGuiUpdate) {
-            General.MouseDown := newHotkey
-            SaveINI()
-            EnableDisable()
-            return
-        }        
-        AppVolumeControl.AdjustVolumeByMouse(-5)
-    }
-
-    EnableDisable(*){
-        Global General
-
-        if (General.KeyUp == "" && General.KeyDown == "" && General.MouseUp == "" && General.MouseDown == ""){
-            optUseOSD.Text := "Disable"
-            General.UseOSD := optUseOSD.Text
-            optUseOSD.Enabled := false
-            optMonitor.Enabled := false
-            optPosition.Enabled := false
-
-        }
-    }
 
     ResetAll(*) {
-        Global General := {
-            UseOSD: "Slim",
-            OSDMonitor: 1,
-            OSDPosition: "Bottom",
-            KeyUp: "^+F8",
-            KeyDown: "^+F7",
-            MouseUp: "^+WheelUp",
-            MouseDown: "^+WheelDown",
-        }
+        bkp_pbdevices := General.PlaybackDevices
+        General := ResetGeneral
+        General.PlaybackDevices := bkp_pbdevices
         SaveINI()
         ReloadWithArgs("ShowSettingsGUI")
     }
@@ -436,140 +408,24 @@ ShowSettingsGUI() {
         SaveINI()
     }
 
-    ApplyTransparencyToControls(guiObj) {
-        if !Settings.DarkModeCompatible
-            return    
 
-        colors := Settings.Theme.Dark
-        ;isDark := (CurrentActualTheme == "Dark")
-        isDark := true
-
-        ; --- Color Conversion (with fallback) ---
-        bgBGR   := HexToBGR(colors.Bg)
-        ctrlBGR := HexToBGR(colors.HasOwnProp("Ctrl") ? colors.Ctrl : colors.Bg)
-        textBGR := HexToBGR(colors.TextDefault)
-
-        ; --- Dark Mode System Setup ---
-        uxtheme := DllCall("GetModuleHandle", "Str", "uxtheme.dll", "Ptr")
-        SetPreferredAppMode := DllCall("GetProcAddress", "Ptr", uxtheme, "Ptr", 135, "Ptr")
-        AllowDarkModeForWindow := DllCall("GetProcAddress", "Ptr", uxtheme, "Ptr", 133, "Ptr")
-        
-
-        if (SetPreferredAppMode) {
-            DllCall(SetPreferredAppMode, "Int", isDark ? 2 : 0)
-        }
-    ;    DllCall(AllowDarkModeForWindow, "Ptr", guiObj.Hwnd, "UInt", isDark)
-        
-
-        ; --- Title Bar ---
-    ;    DWMWA := (VerCompare(A_OSVersion, "10.0.18985") >= 0) ? 20 : 19
-    ;    try DllCall("dwmapi\DwmSetWindowAttribute", "ptr", guiObj.Hwnd, "int", DWMWA, "int*", isDark, "int", 4)
-
-        guiObj.BackColor := colors.Bg
-
-        ; --- WM_CTLCOLORLISTBOX Handler (FIXED: Toggles cleanly between modes) ---
-        static PrevOnCtlBound := 0
-        if (PrevOnCtlBound) {
-            OnMessage(0x0134, PrevOnCtlBound, 0) ; Disables the old custom drawing handle
-            ;MessageManager.Unregister(0x0134, PrevOnCtlBound)
-            PrevOnCtlBound := 0
-        }
-
-        if (isDark) {
-            OnCtlBound := OnCtlColorListbox.Bind(ctrlBGR, textBGR)
-            OnMessage(0x0134, OnCtlBound, -1)
-            ;MessageManager.Register(0x0134, OnCtlBound, true)
-            PrevOnCtlBound := OnCtlBound
-        }
-
-        ; --- Apply Theme to Controls ---
-        for _, ctrlObj in guiObj {
-            try {
-
-                ; --- BYPASS CHECK ---
-                ; If the control has a name containing "Color" or "Btn", skip automatic recoloring
-                if (ctrlObj.HasOwnProp("BypassTheme") && ctrlObj.BypassTheme)
-                    continue
-
-                themeStr := isDark ? "DarkMode_DarkTheme" : "Explorer"
-
-                DllCall(AllowDarkModeForWindow, "Ptr", ctrlObj.Hwnd, "UInt", isDark)
-                DllCall("uxtheme.dll\SetWindowTheme", "ptr", ctrlObj.Hwnd, "str", themeStr, "ptr", 0)
-
-                switch ctrlObj.Type {
-                    case "Text", "Checkbox", "GroupBox":
-
-                        ctrlObj.Opt("+BackgroundTrans")
-                        
-                        ; Direct implementation support for dynamic custom object property tags
-                        tStyle := ctrlObj.HasOwnProp("ThemeStyle") ? ctrlObj.ThemeStyle : ""
-                        
-                        if (tStyle == "Strong" || InStr(ctrlObj.Name, "Title") || InStr(ctrlObj.Name, "Strong"))
-                            ctrlObj.Opt("c" . colors.TextStrong)
-                        else if (tStyle == "Weak" || tStyle == "Smooth" || InStr(ctrlObj.Name, "Footer") || InStr(ctrlObj.Name, "Smooth"))
-                            ctrlObj.Opt("c" . colors.TextSmooth)
-                        else
-                            ctrlObj.Opt("c" . colors.TextDefault)
-
-
-                        ;if (ctrlObj.Type = "Text")
-                        ;   ctrlObj.Opt("+Background" . colors.Bg)
-
-                    case "Edit", "ListBox", "ComboBox", "DDL":
-                        ctrlBg := colors.HasOwnProp("Ctrl") ? colors.Ctrl : colors.Bg
-                        ctrlObj.Opt("+Background" . ctrlBg . " c" . colors.TextDefault)
-
-                        if (ctrlObj.Type = "ComboBox" || ctrlObj.Type = "DDL") {
-                            listHwnd := GetComboListHwnd(ctrlObj)
-                            if (listHwnd) {
-                                DllCall(AllowDarkModeForWindow, "Ptr", listHwnd, "UInt", isDark)
-                                DllCall("uxtheme.dll\SetWindowTheme", "ptr", listHwnd, "str", themeStr, "ptr", 0)
-                            }
-                        }
-
-                    case "ListView":
-                        ctrlBg := colors.HasOwnProp("Ctrl") ? colors.Ctrl : colors.Bg
-                        ctrlObj.Opt("+Background" . ctrlBg . " c" . colors.TextDefault)
-                        ctrlObj.Opt("-E0x200")
-
-                        hdrHwnd := SendMessage(0x101F, 0, 0, ctrlObj)
-                        if (hdrHwnd) {
-                            DllCall(AllowDarkModeForWindow, "Ptr", hdrHwnd, "UInt", isDark)
-                            DllCall("uxtheme.dll\SetWindowTheme", "ptr", hdrHwnd, "str", themeStr, "ptr", 0)
-                        }
-                        SetListViewHeaderSubclass(ctrlObj.Hwnd, textBGR)
-
-                    case "Button", "Progress":
-                        ctrlObj.Opt("+Background" . colors.Bg)
-                }
-
-                PostMessage(0x0128, 0x00010001, 0, ctrlObj.Hwnd)
-                ctrlObj.Redraw()
-            }
-        }
-    }
-
-    if transparent {
+    if UseAcrylicGUI {
         isHovering := false
-        ;NormalColor := "727272"
-        NormalColor := "FFFFFF"
-        HoverColor  := "FFFFFF"
-
         MessageManager.Register(0x0200, OnMouseMoveSettingsGUI)
 
         OnMouseMoveSettingsGUI(wParam, lParam, msg, hwnd) {
             try {
                 if (!btnReset || !btnReset.Hwnd || !btnSave || !btnSave.Hwnd
-                 || !KeyUp || !KeyUp.Hwnd || !KeyDown || !KeyDown.Hwnd 
-                 || !MouseUp || !MouseUp.Hwnd || !MouseDown || !MouseDown.Hwnd)
+                 || !optKeyUp || !optKeyUp.Hwnd || !optKeyDown || !optKeyDown.Hwnd 
+                 || !optMouseUp || !optMouseUp.Hwnd || !optMouseDown || !optMouseDown.Hwnd)
                     return
             } catch {
                 return
             }
             
             if (hwnd == btnReset.Hwnd || hwnd == btnSave.Hwnd
-             || hwnd == KeyUp.Hwnd || hwnd == KeyDown.Hwnd
-             || hwnd == MouseUp.Hwnd || hwnd == MouseDown.Hwnd) {
+             || hwnd == optKeyUp.Hwnd || hwnd == optKeyDown.Hwnd
+             || hwnd == optMouseUp.Hwnd || hwnd == optMouseDown.Hwnd) {
 
                 ctrl := GuiCtrlFromHwnd(hwnd)
 
@@ -585,17 +441,12 @@ ShowSettingsGUI() {
                     MessageManager.Register(0x02A3, OnMouseLeaveSettingsGUI)
                 }
 
-;                if (ctrl == btnReset || ctrl == btnSave) {
-                    ctrl.SetFont("c" HoverColor)
-                    ctrl.Opt("+Background595858")
-;                    return
-;                }
-
+                ctrl.SetFont("c" TextHoverColor)
+                ctrl.Opt("+Background" BGroundHoverColor)
 
                 if !(ctrl == btnReset || ctrl == btnSave) {
                     DllCall("SetCursor", "Ptr", DllCall("LoadCursor", "Ptr", 0, "Ptr", 32649, "Ptr"))
                 }
-
             }
         }
     }
@@ -603,15 +454,28 @@ ShowSettingsGUI() {
     OnMouseLeaveSettingsGUI(wParam, lParam, msg, hwnd) {
         try {
             if (hwnd == btnReset.Hwnd || hwnd == btnSave.Hwnd
-                || hwnd == KeyUp.Hwnd || hwnd == KeyDown.Hwnd
-                || hwnd == MouseUp.Hwnd || hwnd == MouseDown.Hwnd) {
+                || hwnd == optKeyUp.Hwnd || hwnd == optKeyDown.Hwnd
+                || hwnd == optMouseUp.Hwnd || hwnd == optMouseDown.Hwnd) {
 
                 ctrl := GuiCtrlFromHwnd(hwnd)
-                try ctrl.SetFont("c" NormalColor)
-                try ctrl.Opt("+Background282828")
+                try ctrl.SetFont("c" TextNormalColor)
+                try ctrl.Opt("+Background" BGroundNormalColor)
                 isHovering := false
                 ;OnMessage(0x02A3, OnMouseLeaveSettingsGUI, 0)
             }
         }
     }
 }
+
+    SettingsGUI_EnableDisable(*){
+        Global General, SettingsGui, optUseOSD, optMonitor, optPosition
+
+        if (General.KeyUp == "" && General.KeyDown == "" && General.MouseUp == "" && General.MouseDown == ""){
+            optUseOSD.Text := "Disable"
+            General.UseOSD := optUseOSD.Text
+            optUseOSD.Enabled := false
+            optMonitor.Enabled := false
+            optPosition.Enabled := false
+
+        }
+    }

@@ -35,11 +35,12 @@ Global General := {
     OSDMonitor: 1,
     OSDPositionList: ["Top", "Center", "Bottom"],
     OSDPosition: "Bottom",
-    KeyUp: "^+F8",
-    KeyDown: "^+F7",
-    MouseUp: "^+WheelUp",
-    MouseDown: "^+WheelDown",
+    KeyUp: "^#F12",
+    KeyDown: "^#F11",
+    MouseUp: "^#WheelUp",
+    MouseDown: "^#WheelDown",
 }
+ResetGeneral        := General.Clone()
 
 ;@region INI
 SaveToINI.Push(

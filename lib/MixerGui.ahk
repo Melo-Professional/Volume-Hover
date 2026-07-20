@@ -1,6 +1,7 @@
 #Requires AutoHotkey v2.0
 
 global DynamicControls := []
+global SliderControlMap := Map() ; Maps full session programmatic paths to ModernSlider/Text components
 global CurrentGuiHeight := 90 
 
 global IsGuiVisible := false
@@ -15,6 +16,9 @@ global MaxGuiHeight := A_ScreenHeight - 80
 global VirtualGuiHeight := 0
 global CurrentScrollPos := 0
 global hovertimeout := 1000
+
+global TrayHoverStartTime := 0
+global WheelUsedDuringHover := false
 
 ; Initial tracking container (populated via General.PlaybackDevices)
 global VisibleDevicesConfig := Map() 
@@ -49,32 +53,27 @@ CreateAudioMixerGui() {
     ; Child window (Holds all the actual buttons, text, and sliders)
     ChildGui := Gui("-Caption +Parent" MainGui.Hwnd)
     ChildGui.SetFont("cWhite s9", "Segoe UI")
-    ;ChildGui.BackColor := "000000"
     ChildGui.BackColor := "262626"
+    
     RefreshSessionsForSelectedDevice()
 
-
-    ; Initial application of the theme
-    ;FrostedTheme.Apply(MainGui, ChildGui)
+    ; Apply the theme strictly ONCE during creation
     FrostedTheme.Apply(MainGui)
     
     ; Monitor standard Windows vertical scroll updates
-    ;OnMessage(0x0115, WM_VSCROLL)
     MessageManager.Register(0x0115, WM_VSCROLL)
     
-    sleep(500)
+    Sleep(500)
     
-    ; Pre-warm DWM acrylic cache by briefly showing a 1-pixel sliver on-screen AND ACTIVATING it.
-    ; Without activation, Windows 11 refuses to compile the acrylic shader.
-    ; The 1-pixel trick prevents Windows from snapping the active window to 0,0.
-    FrostedTheme.ForceDWMCompilation(MainGui)
-;    FrostedTheme.ForceDWMCompilation(ChildGui)
+    ; Instantiate off-screen to initialize styles cleanly without taking focus
+    MainGui.Show("x-32000 y-32000 w380 h90 NoActivate Hide")
+    
     DllCall("dwmapi\DwmSetWindowAttribute", "Ptr", MainGui.Hwnd, "UInt", 33, "Int*", 2, "UInt", 4)
 }
 
 RefreshSessionsForSelectedDevice() {
-    global MainGui, ChildGui, DynamicControls, DeviceMap, IsGuiVisible
-    global CurrentGuiHeight, TrayMouseX, TrayMouseY, MaxGuiHeight, VirtualGuiHeight, CurrentScrollPos, GlobalPrevFocus
+    global MainGui, ChildGui, DynamicControls, SliderControlMap, DeviceMap, IsGuiVisible
+    global CurrentGuiHeight, TrayMouseX, TrayMouseY, MaxGuiHeight, VirtualGuiHeight, CurrentScrollPos
     
     ; If Gui doesn't exist yet, create it
     if (MainGui == "" || !WinExist(MainGui.Hwnd)) {
@@ -93,12 +92,12 @@ RefreshSessionsForSelectedDevice() {
         try DllCall("user32\DestroyWindow", "Ptr", ctrl.Hwnd)
     }
     DynamicControls := [] 
+    SliderControlMap := Map()
 
     DllCall("user32\RedrawWindow", "Ptr", MainGui.Hwnd, "Ptr", 0, "Ptr", 0, "UInt", 5)
 
     ; Minimal settings layout added directly to the scrolling child canvas
     ChildGui.SetFont("s14", "Segoe UI")
-    ;btnSettings := ChildGui.Add("Button", "x341 y18 w28 h28", "⫶☰")
     btnSettings := ChildGui.Add("Text", "cWhite x341 y20 w28 h28", "⫶☰")
     btnSettings.OnEvent("Click", SelectPlaybackDevicesGUI)
     DynamicControls.Push(btnSettings)
@@ -133,7 +132,6 @@ RefreshSessionsForSelectedDevice() {
         for session in device.Sessions {
             SplitPath(session.ProgName, , , , &cleanProgName)
             lblApp := ChildGui.Add("Text", "x20 y" yPos " w100 h20 cWhite +0x4000 +0x0200", cleanProgName)
-            ;lblApp.SetFont("cWhite s9", "Segoe UI")
             sliderY := yPos - 1
 
             lblVol := ChildGui.Add("Text", "x338 y" yPos " w25 h20 cWhite Right +0x0200", session.Volume)
@@ -141,6 +139,9 @@ RefreshSessionsForSelectedDevice() {
             
             ; Instantiate the ModernSlider
             sldVol := ModernSlider(ChildGui, "x125 y" sliderY " w215 h20", session.Volume, 0, 100, OnSliderChange.Bind(session.SimpleVol, lblVol))
+            
+            ; Save tracking associations to update without structural refreshes later
+            SliderControlMap[StrLower(session.ProgName)] := {Slider: sldVol, Label: lblVol, Session: session.SimpleVol}
             
             DynamicControls.Push(lblApp)
             DynamicControls.Push(lblVol)
@@ -185,7 +186,7 @@ RefreshSessionsForSelectedDevice() {
     
     CurrentGuiHeight := newHeight
     
-    ; Force the child window to anchor directly at (0,0) of the parent frame
+    ; Explicitly show child layout frame without taking focus
     ChildGui.Show("x0 y0 w" wWidth " h" VirtualGuiHeight " NA")
     
     if (IsGuiVisible) {
@@ -211,52 +212,116 @@ RefreshSessionsForSelectedDevice() {
         if (spawnX + wWidth > wr)
             spawnX := wr - wWidth
 
-        ; GUI is already shown — just resize/reposition it in-place
-        MainGui.Move(spawnX, spawnY, wWidth, newHeight)
+        ; Dynamic resizing/repositioning processed via Win32 to prevent window activation
+        DllCall("User32\SetWindowPos", 
+            "Ptr", MainGui.Hwnd, 
+            "Ptr", 0, 
+            "Int", spawnX, 
+            "Int", spawnY, 
+            "Int", wWidth, "Int", newHeight, 
+            "UInt", 0x0010 | 0x0004 ; SWP_NOACTIVATE | SWP_NOZORDER
+        )
     } else {
-        ;MainGui.Show("x-32000 y-32000 w" wWidth " h" newHeight " NoActivate")
-        ;FrostedTheme.ReapplyAll()
-        ;MainGui.Show("x0 y-0 w" wWidth " h" newHeight " NoActivate")
-        MainGui.Show("x0 y-0 w" wWidth " h" newHeight " NoActivate Hide")
+        ; Completely hidden state fallback processed safely without focus signals
+        DllCall("User32\ShowWindow", "Ptr", MainGui.Hwnd, "Int", 0) ; SW_HIDE
+    }
+}
+
+UpdateSpecificSliderValue(progName, stepDelta) {
+    global SliderControlMap
+    lookupKey := StrLower(progName)
+    if (SliderControlMap.Has(lookupKey)) {
+        controlSet := SliderControlMap[lookupKey]
+        currentVal := 0
+        
+        ; Query modern slider's internal tracking
+        try {
+            currentVal := Number(controlSet.Slider.sliderCtrl.Value)
+        } catch {
+            try {
+                txtVal := controlSet.Label.Text
+                currentVal := (txtVal == "") ? 0 : Number(txtVal)
+            } catch {
+                currentVal := 0
+            }
+        }
+        
+        newVal := Max(0, Min(100, currentVal + stepDelta))
+        
+        ; Update the visual text label
+        controlSet.Label.Text := newVal
+        
+        ; Synchronize custom wrapper instance tracking to visually repaint track/thumb elements
+        try {
+            controlSet.Slider.Value := newVal
+        } catch {
+            try {
+                controlSet.Slider.sliderCtrl.Value := newVal
+            }
+        }
+        
+        ; Commit change directly to CoreAudio endpoint
+        SetAppVolume(controlSet.Session, newVal)
     }
 }
 
 OnTrayMessage(wParam, lParam, msg, hwnd) {
-;    if (lParam == 0x200 || lParam == 0x201 || lParam == 0x512 || lParam == 0x513) { 
-        if (IsGuiVisible) {
-            return 0
+    global mouseOverIconEstimate, TrayMouseX, TrayMouseY, TrayHoverStartTime, WheelUsedDuringHover, IsGuiVisible
+    
+    ; 0x200 = WM_MOUSEMOVE
+    if (lParam == 0x200) {
+        if (!mouseOverIconEstimate) {
+            mouseOverIconEstimate := true
+            WheelUsedDuringHover := false
+            TrayHoverStartTime := A_TickCount
+            
+            CoordMode("Mouse", "Screen")
+            MouseGetPos(&TrayMouseX, &TrayMouseY)
+            
+            ; Start a fast watchdog to actively poll the mouse position
+            SetTimer(TrayHoverWatchdog, 50) 
         }
-        ;ToolTip(A_TickCount " " lParam, 820,800)
-        A_IconTip := "" 
-        CoordMode("Mouse", "Screen")
-        MouseGetPos(&sX, &sY)
-        
-        global TrayStartX := sX, TrayStartY := sY
-
-        SetTimer(CheckIfStillHovered, 0)
-        hoverTime := 400 
-        if !DllCall("SystemParametersInfo", "UInt", 0x0066, "UInt", 0, "Int*", &hoverTime, "UInt", 0)
-            hoverTime := 400
-
-        targetDelay := Max(100, hoverTime - 220)
-        SetTimer(CheckIfStillHovered, -targetDelay)
-;    }
+    } 
+    ; 0x201 = WM_LBUTTONDOWN, 0x202 = WM_LBUTTONUP
+    else if (lParam == 0x201 || lParam == 0x202) {
+        if (!IsGuiVisible) {
+            WheelUsedDuringHover := true ; Prevent hover timer from double-triggering
+            ShowMixerGuiNow()
+        }
+    }
 }
 
-CheckIfStillHovered() {
-    global IsGuiVisible, TrayStartX, TrayStartY, TrayMouseX, TrayMouseY, TrayLeaveCount, CurrentGuiHeight, GlobalPrevFocus
+TrayHoverWatchdog() {
+    global mouseOverIconEstimate, TrayMouseX, TrayMouseY, TrayHoverStartTime, WheelUsedDuringHover, IsGuiVisible
+    
+    if (!mouseOverIconEstimate) {
+        SetTimer(TrayHoverWatchdog, 0)
+        return
+    }
+    
     CoordMode("Mouse", "Screen")
-    MouseGetPos(&currentX, &currentY, &targetHwnd)
+    MouseGetPos(&currentX, &currentY)
     
-    sX := TrayStartX, sY := TrayStartY
-    TrayStartX := 0, TrayStartY := 0
-
-    if (Abs(currentX - sX) > 5 || Abs(currentY - sY) > 5 || !targetHwnd)
-         return
-
-    TrayMouseX := currentX, TrayMouseY := currentY
+    ; Define a bounding box (padding) around the tray icon
+    padding := 24
+    isInside := (Abs(currentX - TrayMouseX) <= padding && Abs(currentY - TrayMouseY) <= padding)
     
-    ; Keep existing GUI, just trigger creation flow if it has not been instantiated
+    if (!isInside) {
+        ; Mouse has successfully left the tray icon bounds
+        mouseOverIconEstimate := false
+        SetTimer(TrayHoverWatchdog, 0)
+        return
+    }
+    
+    ; If hovered for 800ms, wheel wasn't used, and GUI isn't already visible
+    if (!IsGuiVisible && !WheelUsedDuringHover && (A_TickCount - TrayHoverStartTime >= 800)) {
+        ShowMixerGuiNow()
+    }
+}
+
+ShowMixerGuiNow() {
+    global IsGuiVisible, TrayMouseX, TrayMouseY, TrayLeaveCount, CurrentGuiHeight, MainGui, hovertimeout
+    
     if (MainGui == "" || !WinExist(MainGui.Hwnd)) {
         CreateAudioMixerGui()
     } else {
@@ -288,37 +353,31 @@ CheckIfStillHovered() {
     if (spawnX + w > wr)
         spawnX := wr - w
     
-    ; Acrylic is pre-applied at startup — just move the window into position
-    ;if (WinExist("A") != MainGui.Hwnd)
-    ;    GlobalPrevFocus := WinExist("A")
+    DllCall("User32\SetWindowPos", "Ptr", MainGui.Hwnd, "Ptr", 0, "Int", spawnX, "Int", spawnY, "Int", w, "Int", h, "UInt", 0x0014 | 0x0040)
     
-    MainGui.Move(spawnX, spawnY, w, h)
     IsGuiVisible := true
-
-    ; Activate window to ensure DWM applies the active acrylic backdrop (fixes opaque fallback)
-    WinActivate(MainGui.Hwnd)
-    
     DllCall("user32\SetWindowPos", "Ptr", MainGui.Hwnd, "Ptr", -1, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x0043)
-    ;DllCall("dwmapi\DwmSetWindowAttribute", "Ptr", MainGui.Hwnd, "UInt", 33, "Int*", 2, "UInt", 4)
     
     TrayLeaveCount := 0 
     SetTimer(HideGuiWhenMouseLeaves, hovertimeout)
 }
 
 HideGuiWhenMouseLeaves() {
-    global IsGuiVisible, TrayMouseX, TrayMouseY, TrayLeaveCount, MainGui, ChildGui, hovertimeout, GlobalPrevFocus
+    global IsGuiVisible, TrayMouseX, TrayMouseY, TrayLeaveCount, MainGui, ChildGui, hovertimeout, mouseOverIconEstimate
 
-    if (MainGui == "" || !WinExist(MainGui.Hwnd))
+    if (MainGui == "" || !WinExist(MainGui.Hwnd)) {
+        mouseOverIconEstimate := false
         return
+    }
 
     CoordMode("Mouse", "Screen")
     MouseGetPos(&mx, &my)
     MainGui.GetPos(&gx, &gy, &gw, &gh)
     
     mouseInsideGui := (mx >= gx && mx <= gx + gw && my >= gy && my <= gy + gh)
-    padding := 20 
+    padding := 24 
     mouseOverIconEstimate := (mx >= TrayMouseX - padding && mx <= TrayMouseX + padding && my >= TrayMouseY - padding && my <= TrayMouseY + padding)
-    
+
     if (!mouseInsideGui && !mouseOverIconEstimate) {
         TrayLeaveCount++ 
         if (TrayLeaveCount >= 2)
@@ -329,21 +388,25 @@ HideGuiWhenMouseLeaves() {
 }
 
 HideAudioMixerGui() {
-    global IsGuiVisible, TrayMouseX, TrayMouseY, MainGui, GlobalPrevFocus
+    global IsGuiVisible, TrayMouseX, TrayMouseY, MainGui
 
-    IsGuiVisible := false, TrayMouseX := 0, TrayMouseY := 0
+    IsGuiVisible := false
+    TrayMouseX := 0
+    TrayMouseY := 0
     SetTimer(HideGuiWhenMouseLeaves, 0)
+    
     if (MainGui != "" && WinExist(MainGui.Hwnd)) {
-        ;MainGui.Move(-32000, -32000)
-        ;MainGui.Move(0, 0)
-        MainGui.Hide()
-;        ToolTip(A_TickCount " ReapplyAll")
-;        FrostedTheme.ReapplyAll()
+        ; Send window to coordinates outside visible boundaries without triggering structural focus signals
+        DllCall("User32\SetWindowPos", 
+            "Ptr", MainGui.Hwnd, 
+            "Ptr", 0, 
+            "Int", -32000, "Int", -32000, 
+            "Int", 0, "Int", 0, 
+            "UInt", 0x0010 | 0x0004 | 0x0001 ; SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOSIZE
+        )
         
-        ; Restore previous focus so the user's workflow isn't interrupted
-;        if (IsSet(GlobalPrevFocus) && GlobalPrevFocus && WinExist(GlobalPrevFocus)) {
-;            try WinActivate(GlobalPrevFocus)
-;        }
+        ; Execute standard background hiding operation completely focus-free
+        DllCall("User32\ShowWindow", "Ptr", MainGui.Hwnd, "Int", 0) ; SW_HIDE
     }
 }
 

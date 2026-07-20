@@ -1,8 +1,8 @@
 /************************************************************************
  * @description Theme Library to apply light / dark / auto modes 
  * @author Melo (melo@meloprofessional.com)
- * @date 2026/07/16
- * @version 1.13.0 (MessageManager )
+ * @date 2026/07/18
+ * @version 1.14.0 (Text color fixed)
  ***********************************************************************/
 
 #Requires AutoHotkey v2.0
@@ -46,7 +46,7 @@ HowtoCreateMyGui() {
     return ExampleGui
 }
 
-ApplyThemeToGui(guiObj) {
+ApplyThemeToGui(guiObj, TextColor := "Auto") {
     if !Settings.DarkModeCompatible
         return    
 
@@ -56,7 +56,17 @@ ApplyThemeToGui(guiObj) {
     ; --- Color Conversion (with fallback) ---
     bgBGR   := HexToBGR(colors.Bg)
     ctrlBGR := HexToBGR(colors.HasOwnProp("Ctrl") ? colors.Ctrl : colors.Bg)
-    textBGR := HexToBGR(colors.TextDefault)
+
+    if (TextColor = "Dark") {
+        colors.TextDefault := Settings.Theme.Dark.TextDefault
+        colors.TextStrong := Settings.Theme.Dark.TextStrong
+        colors.TextSmooth := Settings.Theme.Dark.TextSmooth
+    } else if (TextColor = "Light") {
+        colors.TextDefault := Settings.Theme.Light.TextDefault
+        colors.TextStrong := Settings.Theme.Light.TextStrong
+        colors.TextSmooth := Settings.Theme.Light.TextSmooth
+    }
+        textBGR := HexToBGR(colors.TextDefault)
 
     ; --- Dark Mode System Setup ---
     static uxtheme := DllCall("GetModuleHandle", "Str", "uxtheme.dll", "Ptr")

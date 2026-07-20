@@ -3,14 +3,14 @@
 /************************************************************************
  * @description Controls application audio volumes instantly by hovering over the Windows system tray icon.
  * @author Melo (melo@meloprofessional.com)
- * @date 2026/07/18
+ * @date 2026/07/19
  * @releasedate 2026/07/07
- * @version 1.3.101.0
+ * @version 1.3.200.0
  ***********************************************************************/
 
 AppName := "Volume Hover"
 ;@Ahk2Exe-Let U_AppName = %A_PriorLine%
-AppVersion := "1.3.101.0"
+AppVersion := "1.3.200.0"
 ;@Ahk2Exe-Let U_Version = %A_PriorLine%
 AppDescription := "Controls application audio volumes instantly by hovering over the Windows system tray icon."
 ;@Ahk2Exe-AddResource .\images\keyboard.ico, 209
@@ -60,13 +60,13 @@ A_HotkeyInterval := 1000
 
 #Include <Vars_Custom>
 #Include <Menu_Custom>
-#Include <_ReloadWithArgs>
 #Include <SettingsGUI>
 #Include <AudioSessions>
 #Include <OSDVolume>
 #Include <AppVolumeControl>
 #Include <SelectPlaybackDevicesGUI>
 #Include <MixerGui>
+
 
 ;@endregion
 
@@ -79,10 +79,10 @@ if (A_Args.Length == 0) && IsSet(SplashScreen){
 ; TRAY ICON + MENU
 StartMenu()
 Menu_Custom()
-
 ;@endregion
 ;@endregion
 
+#Include <_ReloadWithArgs>
 ;@region Main
 ; Initialize system hooks and GUI setup
 CreateAudioMixerGui()
@@ -95,7 +95,7 @@ MessageManager.Register(0x0006, WM_ACTIVATE)
 
 #HotIf !A_IsCompiled
 ;+^p::ReloadClean()
-+^p::CustomReload()
+^#p::CustomReload()
 #HotIf
 
 AppVolumeControl.Init({
@@ -106,6 +106,50 @@ AppVolumeControl.Init({
     KeyDown: General.KeyDown
 })
 
+VolUp_ActiveWin(newHotkey := "", isGuiUpdate := false) {
+    if (isGuiUpdate) {
+        global General
+        General.KeyUp := newHotkey
+        SaveINI()
+        SettingsGUI_EnableDisable()
+        return
+    }
+    AppVolumeControl.ActiveWindow(5)
+}
+
+VolDown_ActiveWin(newHotkey := "", isGuiUpdate := false) {
+    if (isGuiUpdate) {
+        global General
+        General.KeyDown := newHotkey
+        SaveINI()
+        SettingsGUI_EnableDisable()
+        return
+    }
+    AppVolumeControl.ActiveWindow(-5)
+}
+
+VolUp_HoverWin(newHotkey := "", isGuiUpdate := false) {
+    if (isGuiUpdate) {
+        global General
+        General.MouseUp := newHotkey
+        SaveINI()
+        SettingsGUI_EnableDisable()
+        return
+    }
+    AppVolumeControl.HoverWindow(5)
+}
+
+VolDown_HoverWin(newHotkey := "", isGuiUpdate := false) {
+    if (isGuiUpdate) {
+        global General
+        General.MouseDown := newHotkey
+        SaveINI()
+        SettingsGUI_EnableDisable()
+        return
+    }        
+    AppVolumeControl.HoverWindow(-5)
+}
+
 OnExit Cleanup
 Cleanup(*) {
     OnMessage(0x020A, OnMouseWheel, 0)
@@ -114,61 +158,143 @@ Cleanup(*) {
     OnMessage(0x0115, WM_VSCROLL, 0)
 }
 
+;ShowSettingsGUI()
 
 
-/*
-; Define the message we want to monitor
-global WM_LBUTTONDOWN := 0x0201
+;global IsMouseOverTray := false
+global mouseOverIconEstimate := false
+global StartIconX := 0
+global StartIconY := 0
 
-; --- GUI 1: A simple window that reacts to clicks when active ---
-gui1 := Gui(, "GUI One")
-gui1.AddText(, "Click inside me!")
-gui1.Show("x100 y100 w200 h100")
+#HotIf mouseOverIconEstimate
 
-; We define our callback
-Gui1_OnLeftClick(wParam, lParam, msg, hwnd) {
-    if hwnd == gui1.Hwnd {
-        ToolTip "You clicked GUI 1!"
-        SetTimer () => ToolTip(), -1000
+WheelUp:: {
+    global WheelUsedDuringHover := true, IsGuiVisible
+    targetApp := GetTrueFirstActiveApp()
+    if (targetApp != "") {
+        if (IsGuiVisible) {
+            ; If GUI is up, route directly to the slider wrapper to update without a complete rebuild
+            UpdateSpecificSliderValue(targetApp, 5)
+        } else {
+            AppVolumeControl.HoverWindow(5, targetApp)
+        }
     }
 }
-; Register it!
-MessageManager.Register(WM_LBUTTONDOWN, Gui1_OnLeftClick)
 
-
-; --- GUI 2: Another window that also reacts to clicks ---
-gui2 := Gui(, "GUI Two")
-gui2.AddText(, "Click inside me too!")
-gui2.Show("x400 y100 w200 h100")
-
-Gui2_OnLeftClick(wParam, lParam, msg, hwnd) {
-    if hwnd == gui2.Hwnd {
-        ToolTip "You clicked GUI 2! (Double Action)"
-        SetTimer () => ToolTip(), -1000
+WheelDown:: {
+    global WheelUsedDuringHover := true, IsGuiVisible
+    targetApp := GetTrueFirstActiveApp()
+    if (targetApp != "") {
+        if (IsGuiVisible) {
+            ; If GUI is up, route directly to the slider wrapper to update without a complete rebuild
+            UpdateSpecificSliderValue(targetApp, -5)
+        } else {
+            AppVolumeControl.HoverWindow(-5, targetApp)
+        }
     }
 }
-; Register it!
-MessageManager.Register(WM_LBUTTONDOWN, Gui2_OnLeftClick)
+#HotIf ; Reset context
 
+; 3. The watchdog timer function
+ResetTrayHoverFlag() {
+    global IsMouseOverTray := false
+    global mouseOverIconEstimate := false
+}
 
-; --- GUI 3: A toggle window to show how to dynamically turn features On/Off ---
-gui3 := Gui(, "Toggle Tool")
-btn := gui3.AddButton("w150", "Unregister GUI 2 Clicks")
-btn.OnEvent("Click", ToggleGui2)
-gui3.Show("x250 y300")
+GetLastActiveWindow() {
+    ; Get a list of all windows, ordered from front to back (Z-order)
+    windowIDs := WinGetList()
+    
+    ; windowIDs[1] is the CURRENT active window.
+    ; We loop starting at index 2 to find the first valid previous window.
+    loop windowIDs.Length - 1 {
+        thisID := windowIDs[A_Index + 1]
+        
+        ; Skip hidden windows or basic system elements like the desktop/taskbar
+        if !WinExist("ahk_id " thisID)
+            continue
+            
+        style := WinGetStyle("ahk_id " thisID)
+        exStyle := WinGetExStyle("ahk_id " thisID)
+        
+        ; Filter out invisible/background windows
+        ; 0x10000000 is WS_VISIBLE. 0x00000040 is WS_EX_TOOLWINDOW (skip alt-tab hidden tools)
+        if !(style & 0x10000000) || (exStyle & 0x00000040)
+            continue
+            
+        ; Skip the Program Manager (Desktop background) and the Taskbar itself
+        title := WinGetTitle("ahk_id " thisID)
+        getclass := WinGetClass("ahk_id " thisID)
+        if (getclass ~= "i)^(Progman|WorkerW|Shell_TrayWnd|Shell_SecondaryTrayWnd)$" || title == ""  || title == "PopupHost"
+        || title == App.Name || title == "Volume OSD")
+            continue
+            
+        return thisID ; Found it!
+    }
+    return 0
+}
 
-ToggleGui2(btnObj, *) {
-    static active := true
-    if active {
-        MessageManager.Unregister(WM_LBUTTONDOWN, Gui2_OnLeftClick)
-        btnObj.Text := "Register GUI 2 Clicks"
-        active := false
+Getcurrentactivewindow(){
+    ; 1. Get the unique ID (HWND) of the active window
+    activeID := WinExist("A")
+    
+    if activeID {
+        ; 2. Fetch details using the ID
+        activeTitle := WinGetTitle("ahk_id " activeID)
+        activeProcess := WinGetProcessName("ahk_id " activeID)
+        
+        result := ("Active Window ID: " activeID "`n"
+             . "Title: " activeTitle "`n"
+             . "Process: " activeProcess)
     } else {
-        MessageManager.Register(WM_LBUTTONDOWN, Gui2_OnLeftClick)
-        btnObj.Text := "Unregister GUI 2 Clicks"
-        active := true
+        result := ("No active window detected (could be a system menu or transitional state).")
     }
+    return result
 }
-*/
+
+GetTrueFirstActiveApp() {
+    global DeviceMap, VisibleDevicesConfig
+    deviceNames := PopulatePlaybackDevices()
+    
+    ; Gather all running audio process paths into a temporary map
+    activeAudioApps := Map()
+    for deviceName in deviceNames {
+        if (!VisibleDevicesConfig.Has(deviceName) || !VisibleDevicesConfig[deviceName])
+            continue
+        devicePtr := DeviceMap[deviceName]
+        sessions := GetAudioSessionsForDevice(devicePtr)
+        for session in sessions {
+            if (session.ProgName != "") {
+                SplitPath(session.ProgName, &exeName)
+                activeAudioApps[StrLower(exeName)] := session.ProgName
+            }
+        }
+    }
+    
+    if (activeAudioApps.Count == 0)
+        return ""
+
+    ; Query Windows Z-Order (Frontmost windows to backmost)
+    windowList := WinGetList()
+    for hwnd in windowList {
+        try {
+            winExe := WinGetProcessName("ahk_id " hwnd)
+            winExeLower := StrLower(winExe)
+            
+            ; The first window in the Z-order list that matches one of our 
+            ; active audio sessions wins!
+            if (activeAudioApps.Has(winExeLower)) {
+                return activeAudioApps[winExeLower]
+            }
+        }
+    }
+    
+    ; Fallback: Return any key if window matching fails
+    for exe, fullPath in activeAudioApps
+        return fullPath
+
+    return ""
+}
+
 
 ;ShowSettingsGUI()

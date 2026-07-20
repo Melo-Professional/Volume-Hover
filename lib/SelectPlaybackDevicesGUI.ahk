@@ -1,89 +1,116 @@
+/************************************************************************
+ * @description Select Playback Devices
+ * @author Melo (melo@meloprofessional.com)
+ * @date 2026/07/19
+ * @version 2.0.1
+ ***********************************************************************/
+
 SelectPlaybackDevicesGUI(*) {
-    global VisibleDevicesConfig
+    global VisibleDevicesConfig, DevicesGui
 
-    transparent := true
+try {
+        if (HasBase(DevicesGui, Gui.Prototype) && WinExist(DevicesGui)) {
+            WinActivate(DevicesGui)
+            return
+        }
+    } catch {
+    }
 
-    HoverSettingsGui := Gui("+Owner" MainGui.Hwnd " +LastFound -Caption", "Show Playback Devices")
 
-    CustomTitleBar.Attach(HoverSettingsGui, {
-        Title: "Show Playback Devices",
+    MyGuiTitle := App.Name . " Settings"
+    DevicesGui := Gui("+Owner" MainGui.Hwnd " +LastFound -Caption", MyGuiTitle)
+    ;DevicesGui := Gui(" +LastFound -Caption", MyGuiTitle)
+    UseAcrylicGUI := true
+
+    titlebar := CustomTitleBar.Attach(DevicesGui, {
+        Title: MyGuiTitle,
         ShowIcon: true,
-        Min: true,
-        Max: false, ; Turn off maximize if you don't need it
+        Min: false,
+        Max: false,
         Close: true
     })
 
-        DllCall("dwmapi\DwmSetWindowAttribute", "Ptr", HoverSettingsGui.Hwnd, "UInt", 33, "Int*", 2, "UInt", 4)
+;    titlebar.BypassTheme := false
 
+    DllCall("dwmapi\DwmSetWindowAttribute", "Ptr", DevicesGui.Hwnd, "UInt", 33, "Int*", 2, "UInt", 4)
 
-    if transparent {
-        HoverSettingsGui.SetFont("cWhite s13", Settings.GuiFontName)
+    TextNormalColor := "CCCCCC"
+    TextHoverColor  := "FFFFFF"
+    BGroundNormalColor  := "1b1b1b"
+    BGroundHoverColor  := "313131"
+
+    if UseAcrylicGUI {
+        DevicesGui.SetFont("c" TextNormalColor " s" Settings.GuiFontSizeMedium, Settings.GuiFontName)
     } else {
-        HoverSettingsGui.SetFont("s13", Settings.GuiFontName)
+        DevicesGui.SetFont("s" Settings.GuiFontSizeMedium, Settings.GuiFontName)
     }
 
     ; Define layout constants
-    GuiWidth                     := 560
-    BtnWidth                     := 100
-    HoverSettingsGui.MarginX     := 50
-    HoverSettingsGui.MarginY     := 30
+    GuiWidth               := 560
+    BtnWidth               := 100
+    DevicesGui.MarginX     := 50
+    DevicesGui.MarginY     := 30
 
-    HoverSettingsGui.SetFont("s10 w850")
-    HoverSettingsGui.Add("Text", "vTitle xm y+30 w350", "Select playback devices to show:")
+    DevicesGui.SetFont("s10 w850")
+    DevicesGui.Add("Text", "vTitle xm y+30 w350", "Select playback devices to show:")
     
     deviceNames := PopulatePlaybackDevices()
     checkboxes := Map()
     yOffset := 100
 
-    HoverSettingsGui.SetFont("s11 w400")
+    DevicesGui.SetFont("s11 w400")
     for name in deviceNames {
         isChecked := (VisibleDevicesConfig.Has(name) && VisibleDevicesConfig[name]) ? "Checked" : ""
         namelabel := (StrLen(name) > 52) ? SubStr(name, 1, 49) "..." : name
         
         ; Separated checkbox (no caption)
-        chk := HoverSettingsGui.Add("Checkbox", "xm+20 y" yOffset " w20 h20 " isChecked)
+        chk := DevicesGui.Add("Checkbox", "xm+20 y" yOffset " w20 h20 " isChecked)
         checkboxes[name] := chk
         
         ; Separated description text
-        txtCtrl := HoverSettingsGui.Add("Text", "x+10 yp w430 h20 +BackgroundTrans", namelabel)
-        
-        ; Clicking the text toggles the checkbox
+        txtCtrl := DevicesGui.Add("Text", "x+10 yp w430 h20 +BackgroundTrans", namelabel)
+
         txtCtrl.OnEvent("Click", ((associatedCheckbox, *) => associatedCheckbox.Value := !associatedCheckbox.Value).Bind(chk))
         
         yOffset += 40
     }
  
     ; Button OK
-    HoverSettingsGui.SetFont("s" Settings.GuiFontSizeMedium " w300", Settings.GuiFontName)
+    DevicesGui.SetFont("s" Settings.GuiFontSizeMedium " w300", Settings.GuiFontName)
     btnX := (GuiWidth - BtnWidth) // 2 ; center
 
-    if transparent {
+    if UseAcrylicGUI {
 ;        HoverSettingsGui.SetFont("s" Settings.GuiFontSizeBig " C727272 w700", Settings.GuiFontName)
-        HoverSettingsGui.SetFont("s" Settings.GuiFontSizeBig " CWhite w700", Settings.GuiFontName)
-        btnSave := HoverSettingsGui.Add("Text", "x" btnX " y" (yOffset + 20) " w" BtnWidth " h30 Center 0x0200 Background282828 +Border", "SAVE")
+        DevicesGui.SetFont("s" Settings.GuiFontSizeBig " CWhite w700", Settings.GuiFontName)
+        btnSave := DevicesGui.Add("Text", "x" btnX " y" (yOffset + 20) " w" BtnWidth " h30 Center 0x0200 Background282828 +Border", "SAVE")
         btnSave.BypassTheme := true
     } else {
-        HoverSettingsGui.SetFont("s" Settings.GuiFontSizeMedium " w300", Settings.GuiFontName)
-        btnSave := HoverSettingsGui.AddButton("x" btnX " y" (yOffset + 20) " w" BtnWidth " h30 Default", "&Save")
+        DevicesGui.SetFont("s" Settings.GuiFontSizeMedium " w300", Settings.GuiFontName)
+        btnSave := DevicesGui.AddButton("x" btnX " y" (yOffset + 20) " w" BtnWidth " h30 Default", "&Save")
     }
 
     btnSave.OnEvent("Click", SavePreferences)
 
-    if transparent {
-        FrostedTheme.ApplyTransparencyToControls(HoverSettingsGui)
-        FrostedTheme.Apply(HoverSettingsGui)
+    if UseAcrylicGUI {
+        ApplyThemeToGui(DevicesGui, "Dark")
+;        ApplyTransparencyToControls(SettingsGui)
+        FrostedTheme.Apply(DevicesGui)
+    } else {
+        ApplyThemeToGui(DevicesGui)
+        WatchedGUIs.Push(DevicesGui)
+    }
 
+    DevicesGui.OnEvent("Close", HoverSettingsGuiUnregister)
+    DevicesGui.OnEvent("Escape", HoverSettingsGuiUnregister)
+
+    DevicesGui.Show("w" GuiWidth " h" (yOffset + 75))
+    btnSave.Focus()
+
+    if UseAcrylicGUI {
         isHovering := false
-        ;NormalColor := "727272"
-        NormalColor := "FFFFFF"
-        HoverColor  := "FFFFFF"
-
-        ;OnMessage(0x0200, OnMouseMoveHoverSettings)
         MessageManager.Register(0x0200, OnMouseMoveHoverSettings)
 
         OnMouseMoveHoverSettings(wParam, lParam, msg, hwnd) {
-;            if hwnd != HoverSettingsGui.Hwnd
-;                return
             try {
                 if (!btnSave || !btnSave.Hwnd)
                     return
@@ -102,35 +129,25 @@ SelectPlaybackDevicesGUI(*) {
                     NumPut("UInt", 2,                    TRACKMOUSEEVENT, 4)
                     NumPut("Ptr",  ctrl.Hwnd,          TRACKMOUSEEVENT, A_PtrSize == 8 ? 8 : 8)
                     DllCall("TrackMouseEvent", "Ptr", TRACKMOUSEEVENT)
-                    
-                    ;OnMessage(0x02A3, OnMouseLeaveHoverSettings)
+
                     MessageManager.Register(0x02A3, OnMouseLeaveHoverSettings)
                 }
 
-                if (ctrl == btnSave) {
-                    ctrl.SetFont("c" HoverColor)
-                    ctrl.Opt("+Background595858")
-                    return
-                }
+                ctrl.SetFont("c" TextHoverColor)
+                ctrl.Opt("+Background" BGroundHoverColor)
 
-                DllCall("SetCursor", "Ptr", DllCall("LoadCursor", "Ptr", 0, "Ptr", 32649, "Ptr"))
+                if (ctrl == btnSave) {
+                    DllCall("SetCursor", "Ptr", DllCall("LoadCursor", "Ptr", 0, "Ptr", 32649, "Ptr"))
+                }
             }
         }
-    } else {
-        ApplyThemeToGui(HoverSettingsGui)
-        WatchedGUIs.Push(HoverSettingsGui)
     }
 
-    HoverSettingsGui.OnEvent("Close", HoverSettingsGuiUnregister)
-    HoverSettingsGui.OnEvent("Escape", HoverSettingsGuiUnregister)
 
     HoverSettingsGuiUnregister(*) {
         MessageManager.Unregister(0x0200, OnMouseMoveHoverSettings)
         MessageManager.Unregister(0x02A3, OnMouseLeaveHoverSettings)
     }
-
-    HoverSettingsGui.Show("w" GuiWidth " h" (yOffset + 75))
-    btnSave.Focus()
     
     SavePreferences(*) {
         ;OnMessage(0x0200, OnMouseMoveHoverSettings, 0)
@@ -152,18 +169,16 @@ SelectPlaybackDevicesGUI(*) {
         if IsSet(SaveINI)
             SaveINI()
             
-        HoverSettingsGui.Destroy()
+        DevicesGui.Destroy()
         RefreshSessionsForSelectedDevice()
     }
 
     OnMouseLeaveHoverSettings(wParam, lParam, msg, hwnd) {
-;        if hwnd != HoverSettingsGui.Hwnd
-;            return
         try {
             if (hwnd == btnSave.Hwnd) {
                 ctrl := GuiCtrlFromHwnd(hwnd)
-                try ctrl.SetFont("c" NormalColor)
-                try ctrl.Opt("+Background282828")
+                try ctrl.SetFont("c" TextNormalColor)
+                try ctrl.Opt("+Background" BGroundNormalColor)
                 isHovering := false
             }
         }
