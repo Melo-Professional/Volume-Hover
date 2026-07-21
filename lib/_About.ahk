@@ -1,31 +1,31 @@
 /************************************************************************
  * @description About GUI
  * @author Melo (melo@meloprofessional.com)
- * @date 2026/07/18
- * @version 1.7.0 (MessageManager + Acrylic )
+ * @date 2026/07/20
+ * @version 1.7.5 (Theme support fix)
  ***********************************************************************/
 
 #Requires AutoHotkey v2.0
 
 ShowAboutGUI() {
     MyGuiTitle := "About"
-    UseAcrylicGUI := true
-
-    if UseAcrylicGUI {
-        MyGuiOptions := "+LastFound -Caption"
-    } else {
-        MyGuiOptions := "+LastFound -SysMenu"
-    }
-
+    MyGuiOptions := "+LastFound -SysMenu"
     MyGui := Gui(MyGuiOptions, MyGuiTitle)
+    MyGui.SetFont("s" Settings.GuiFontSizeMedium, Settings.GuiFontName)
 
-    titlebar := CustomTitleBar.Attach(MyGui, {
-        Title: App.Name,
-        ShowIcon: false,
-        Min: false,
-        Max: false,
-        Close: true
-    })
+    UseAcrylicGUI := false
+    if IsFunctionDefined("CustomTitleBar") {
+        UseAcrylicGUI := true
+        MyGui.Opt("-Caption")
+        titlebar := %"CustomTitleBar"%.Attach(MyGui, {
+            Title: MyGuiTitle,
+            ShowIcon: false,
+            Min: false,
+            Max: false,
+            Close: false
+        })
+        MyGui.Add("Text", "xm ym", " ")
+    }
 
     DllCall("dwmapi\DwmSetWindowAttribute", "Ptr", MyGui.Hwnd, "UInt", 33, "Int*", 2, "UInt", 4)
 
@@ -33,12 +33,10 @@ ShowAboutGUI() {
     TextHoverColor  := "FFFFFF"
     BGroundNormalColor  := "1b1b1b"
     BGroundHoverColor  := "313131"
-
-    if UseAcrylicGUI {
-        MyGui.SetFont("c" TextNormalColor " s" Settings.GuiFontSizeMedium, Settings.GuiFontName)
-    } else {
-        MyGui.SetFont("s" Settings.GuiFontSizeMedium, Settings.GuiFontName)
-    }
+    isHovering := false
+;    if UseAcrylicGUI {
+;        MyGui.SetFont("c" TextNormalColor " s" Settings.GuiFontSizeMedium, Settings.GuiFontName)
+;    }
 
     ; Define layout constants
     GuiWidth            := 460
@@ -70,8 +68,6 @@ ShowAboutGUI() {
 
 
     if App.Github {
-        isHovering := false
-
         GitNormalColor := "5865F2"
         GitHoverColor  := "5896f2"
 
@@ -88,7 +84,8 @@ ShowAboutGUI() {
 
     ; 4. Credits / Copyright
     MyGui.SetFont("cDefault s" Settings.GuiFontSizeSmall " w400")
-    MyGui.Add("Text", "xm y+20 vSmooth_Credits", App.Copyright)
+    Credits := MyGui.Add("Text", "xm y+20 vSmooth_Credits", App.Copyright)
+    Credits.OnEvent("Click", OpenMailTo)
 
     ; Button OK
     MyGui.SetFont("s" Settings.GuiFontSizeMedium " w300", Settings.GuiFontName)
@@ -98,18 +95,22 @@ ShowAboutGUI() {
     if UseAcrylicGUI {
 ;        HoverSettingsGui.SetFont("s" Settings.GuiFontSizeBig " C727272 w700", Settings.GuiFontName)
         MyGui.SetFont("s" Settings.GuiFontSizeBig " CWhite w700", Settings.GuiFontName)
-        btnSave := MyGui.Add("Text", "x" btnX " y+25 w" BtnWidth " h30 Center 0x0200 Background282828 +Border", "OK")
+        btnSave := MyGui.Add("Text", "x" btnX " y+25 w" BtnWidth " h30 Center 0x0200 Background" BGroundNormalColor " +Border", "OK")
         btnSave.BypassTheme := true
     } else {
         MyGui.SetFont("s" Settings.GuiFontSizeMedium " w300", Settings.GuiFontName)
-        btnSave := MyGui.AddButton("x" btnX " y+25 w" BtnWidth " h30 Default", "&Save")
+        btnSave := MyGui.AddButton("x" btnX " y+25 w" BtnWidth " h30 Default", "&OK")
     }
 
     btnSave.OnEvent("Click", CleanDestroy)
+    MyGui.OnEvent("Close", CleanDestroy)
+    MyGui.OnEvent("Escape", CleanDestroy)
 
     if UseAcrylicGUI {
-        ApplyThemeToGui(MyGui, "Dark")
-        FrostedTheme.Apply(MyGui)
+        if IsFunctionDefined("ApplyThemeToGui")
+            %"ApplyThemeToGui"%(MyGui, "Dark")
+        if IsFunctionDefined("FrostedTheme")
+            %"FrostedTheme"%.Apply(MyGui)
     } else {
         ApplyThemeToGui(MyGui)
         WatchedGUIs.Push(MyGui)
@@ -121,21 +122,27 @@ ShowAboutGUI() {
     if (App.Github || UseAcrylicGUI) {
 
         if IsSet(MessageManager) {
-            MessageManager.Register(0x0200, OnMouseMoveAbout)
+            MessageManager.Register(0x0200, OnMouseMoveMyGui)
         } else {
-            OnMessage(0x0200, OnMouseMoveAbout)
+            OnMessage(0x0200, OnMouseMoveMyGui)
         }
     }
 
-    OnMouseMoveAbout(wParam, lParam, msg, hwnd) {
+    OpenMailTo(*) {
+        Run("mailto:melo@meloprofessional.com")
+        CleanDestroy()
+    }
+
+
+    OnMouseMoveMyGui(wParam, lParam, msg, hwnd) {
         try {
-            if (!btnSave || !btnSave.Hwnd || !MyLink || !MyLink.Hwnd)
+            if (!btnSave || !MyLink || !Credits)
                 return
         } catch {
             return
         }
         
-        if (hwnd == btnSave.Hwnd || hwnd == MyLink.Hwnd) {
+        if (hwnd == btnSave.Hwnd || hwnd == MyLink.Hwnd || hwnd == Credits.Hwnd) {
 
             ctrl := GuiCtrlFromHwnd(hwnd)
 
@@ -149,9 +156,9 @@ ShowAboutGUI() {
                     DllCall("TrackMouseEvent", "Ptr", TRACKMOUSEEVENT)
                     
                     if IsSet(MessageManager) {
-                        MessageManager.Register(0x02A3, OnMouseLeaveAbout)
+                        MessageManager.Register(0x02A3, OnMouseLeaveMyGui)
                     } else {
-                        OnMessage(0x02A3, OnMouseMoveAbout)
+                        OnMessage(0x02A3, OnMouseLeaveMyGui)
                     }
             }
 
@@ -159,6 +166,8 @@ ShowAboutGUI() {
             if (ctrl == MyLink) {
                 DllCall("SetCursor", "Ptr", DllCall("LoadCursor", "Ptr", 0, "Ptr", 32649, "Ptr"))
                 ctrl.SetFont("c" GitHoverColor)
+            } else if (ctrl == Credits) {
+                DllCall("SetCursor", "Ptr", DllCall("LoadCursor", "Ptr", 0, "Ptr", 32649, "Ptr"))
             } else {
                 ctrl.SetFont("c" TextHoverColor)
                 ctrl.Opt("+Background" BGroundHoverColor)
@@ -166,33 +175,31 @@ ShowAboutGUI() {
         }
     }    
 
-    OnMouseLeaveAbout(wParam, lParam, msg, hwnd) {
+    OnMouseLeaveMyGui(wParam, lParam, msg, hwnd) {
         try {
-            if (hwnd == btnSave.Hwnd || hwnd == MyLink.Hwnd) {
+            if (hwnd == btnSave.Hwnd || hwnd == MyLink.Hwnd || hwnd == Credits.Hwnd) {
                 ctrl := GuiCtrlFromHwnd(hwnd)
 
                 if (ctrl == MyLink) {
                     ctrl.SetFont("c" GitNormalColor)
+                } else if (ctrl == Credits) {
                 } else {
                     ctrl.SetFont("c" TextNormalColor)
                     ctrl.Opt("+Background" BGroundNormalColor)
 
                 }
-                isHovering := false
+        isHovering := false
             }
         }
     }
 
     CleanDestroy(*) {
-        if App.HasOwnProp("Github"){
-
-            if IsSet(MessageManager) {
-                MessageManager.Unregister(0x0200, OnMouseMoveAbout)
-                MessageManager.Unregister(0x02A3, OnMouseLeaveAbout)
-            } else {
-                OnMessage(0x0200, OnMouseMoveAbout, 0)
-                OnMessage(0x02A3, OnMouseLeaveAbout, 0)
-            }
+        if IsSet(MessageManager) {
+            MessageManager.Unregister(0x0200, OnMouseMoveMyGui)
+            MessageManager.Unregister(0x02A3, OnMouseLeaveMyGui)
+        } else {
+            OnMessage(0x0200, OnMouseMoveMyGui, 0)
+            OnMessage(0x02A3, OnMouseLeaveMyGui, 0)
         }
         
         if IsFunctionDefined("RemoveGuiFromArray")

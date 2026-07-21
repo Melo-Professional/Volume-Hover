@@ -1,8 +1,8 @@
 /************************************************************************
  * @description Lib to record custom hotkeys
  * @author Melo
- * @date 2026/07/16
- * @version 1.3.0 (Fix callback with recording )
+ * @date 2026/07/20
+ * @version 1.3.3 (listening message)
  ***********************************************************************/
 
 
@@ -10,23 +10,37 @@
 
 MyGui := Gui()
 
-Hot1 := MyGui.Add("Button", "y+35 w220 h36")
+Hot1 := MyGui.Add("Button", "y+35 w240 h36")
 HotkeyManager.BindControl(Hot1, "^!c", RunMyFunc1) ; Bind it!
 
-Hot2 := MyGui.Add("Text", "y+35 w220 h36")
-HotkeyManager.BindControl(Hot2, "^+WheelDown", RunMyFunc2) ; Bind it!
+Global General := {
+    KeyUp: "^#F12",
+}
+
+Global optKeyUp := SettingsGui.Add("Text", "h32 w240 Center 0x0200 +Border")
+HotkeyManager.BindControl(optKeyUp, General.KeyUp, VolUp_ActiveWin)
 
 MyGui.Show()
+CleanDestroy(*) {
+    MyGui.Destroy()
+    try HotkeyRecorder.Cancel()
+}
+
 
 RunMyFunc1(thisHotkey) {
     Run("calc.exe")
 }
 
-RunMyFunc2(thisHotkey) {
-    ToolTip("System Active! (Triggered via " . thisHotkey . ")")
-    SetTimer((*) => ToolTip(), -1500)
+VolUp_ActiveWin(newHotkey := "", isGuiUpdate := false) {
+    if (isGuiUpdate) {
+        global General
+        General.KeyUp := newHotkey
+;        SaveINI()
+;        SettingsGUI_EnableDisable()
+        return
+    }
+;    AppVolumeControl.ActiveWindow(5)
 }
-
 */
 
 #Requires AutoHotkey v2.0
@@ -47,7 +61,7 @@ class HotkeyManager {
     }
     
     static _OnControlClicked(guiCtrl, *) {
-        guiCtrl.Text := "  Listening... (ESC to Clear)"
+        guiCtrl.Text := "`tListening... (ESC to Clear)`t     ⌨"
         HotkeyRecorder.Start(ObjBindMethod(this, "_OnHotkeyCaptured", guiCtrl))
     }
     

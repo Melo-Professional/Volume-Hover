@@ -3,14 +3,14 @@
 /************************************************************************
  * @description Controls application audio volumes instantly by hovering over the Windows system tray icon.
  * @author Melo (melo@meloprofessional.com)
- * @date 2026/07/19
+ * @date 2026/07/20
  * @releasedate 2026/07/07
- * @version 1.3.200.0
+ * @version 1.3.203.6
  ***********************************************************************/
 
 AppName := "Volume Hover"
 ;@Ahk2Exe-Let U_AppName = %A_PriorLine%
-AppVersion := "1.3.200.0"
+AppVersion := "1.3.203.6"
 ;@Ahk2Exe-Let U_Version = %A_PriorLine%
 AppDescription := "Controls application audio volumes instantly by hovering over the Windows system tray icon."
 ;@Ahk2Exe-AddResource .\images\keyboard.ico, 209
@@ -20,6 +20,8 @@ AppDescription := "Controls application audio volumes instantly by hovering over
 ;@Ahk2Exe-AddResource .\images\position.ico, 213
 
 ;@endregion
+
+backupMode := "AppVersionAndMinutes"
 
 ;@region Directives
 #Requires AutoHotkey v2.0
@@ -39,6 +41,7 @@ A_HotkeyInterval := 1000
 
 ;@region Includes
 #Include *i <_CompilerDirectives>
+#Include *i <_Backup>
 #Include *i <_Config&Vars>
 #Include *i <_MsgBoxCustom>
 #Include *i <_SaveSettings>
@@ -56,7 +59,6 @@ A_HotkeyInterval := 1000
 ;#Include *i <_Help>
 #Include *i <_Menu>
 #Include *i <_ODColors>
-
 
 #Include <Vars_Custom>
 #Include <Menu_Custom>
@@ -168,7 +170,7 @@ global StartIconY := 0
 
 #HotIf mouseOverIconEstimate
 
-WheelUp:: {
+$WheelUp:: {
     global WheelUsedDuringHover := true, IsGuiVisible
     targetApp := GetTrueFirstActiveApp()
     if (targetApp != "") {
@@ -181,7 +183,7 @@ WheelUp:: {
     }
 }
 
-WheelDown:: {
+$WheelDown:: {
     global WheelUsedDuringHover := true, IsGuiVisible
     targetApp := GetTrueFirstActiveApp()
     if (targetApp != "") {
@@ -296,5 +298,11 @@ GetTrueFirstActiveApp() {
     return ""
 }
 
+if isSet(FirstRun) && FirstRun{
+    TrayMouseX := 99999
+    TrayMouseY := 99999
+    ShowSettingsGUI()
+    ShowMixerGuiNow()
+}
 
 ;ShowSettingsGUI()

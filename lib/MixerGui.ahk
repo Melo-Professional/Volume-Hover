@@ -2,10 +2,9 @@
 
 global DynamicControls := []
 global SliderControlMap := Map() ; Maps full session programmatic paths to ModernSlider/Text components
-global CurrentGuiHeight := 90 
+global CurrentGuiHeight := 90
 
 global IsGuiVisible := false
-global TrayStartX := 0, TrayStartY := 0
 global TrayMouseX := 0, TrayMouseY := 0
 global TrayLeaveCount := 0
 global MainGui := ""
@@ -98,7 +97,7 @@ RefreshSessionsForSelectedDevice() {
 
     ; Minimal settings layout added directly to the scrolling child canvas
     ChildGui.SetFont("s14", "Segoe UI")
-    btnSettings := ChildGui.Add("Text", "cWhite x341 y20 w28 h28", "⫶☰")
+    btnSettings := ChildGui.Add("Text", "cWhite x341 y19 w28 h28", "⫶☰")
     btnSettings.OnEvent("Click", SelectPlaybackDevicesGUI)
     DynamicControls.Push(btnSettings)
 

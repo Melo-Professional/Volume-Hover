@@ -1,14 +1,14 @@
 /************************************************************************
  * @description Select Playback Devices
  * @author Melo (melo@meloprofessional.com)
- * @date 2026/07/19
- * @version 2.0.1
+ * @date 2026/07/20
+ * @version 2.0.2 (Clean Close fix)
  ***********************************************************************/
 
 SelectPlaybackDevicesGUI(*) {
     global VisibleDevicesConfig, DevicesGui
 
-try {
+    try {
         if (HasBase(DevicesGui, Gui.Prototype) && WinExist(DevicesGui)) {
             WinActivate(DevicesGui)
             return
@@ -16,19 +16,24 @@ try {
     } catch {
     }
 
+    MyGuiTitle := App.Name . " Playback Devices"
+    MyGuiOptions := "+Owner" MainGui.Hwnd " +LastFound"
+    DevicesGui := Gui( MyGuiOptions, MyGuiTitle)
+    DevicesGui.SetFont("s" Settings.GuiFontSizeMedium, Settings.GuiFontName)
 
-    MyGuiTitle := App.Name . " Settings"
-    DevicesGui := Gui("+Owner" MainGui.Hwnd " +LastFound -Caption", MyGuiTitle)
-    ;DevicesGui := Gui(" +LastFound -Caption", MyGuiTitle)
     UseAcrylicGUI := true
 
-    titlebar := CustomTitleBar.Attach(DevicesGui, {
-        Title: MyGuiTitle,
-        ShowIcon: true,
-        Min: false,
-        Max: false,
-        Close: true
-    })
+    if UseAcrylicGUI {
+        DevicesGui.Opt("-Caption")
+        titlebar := CustomTitleBar.Attach(DevicesGui, {
+            Title: MyGuiTitle,
+            ShowIcon: true,
+            Min: false,
+            Max: false,
+            Close: true
+        })
+        DevicesGui.Add("Text", "xm ym", " ")
+    }
 
 ;    titlebar.BypassTheme := false
 
@@ -38,12 +43,6 @@ try {
     TextHoverColor  := "FFFFFF"
     BGroundNormalColor  := "1b1b1b"
     BGroundHoverColor  := "313131"
-
-    if UseAcrylicGUI {
-        DevicesGui.SetFont("c" TextNormalColor " s" Settings.GuiFontSizeMedium, Settings.GuiFontName)
-    } else {
-        DevicesGui.SetFont("s" Settings.GuiFontSizeMedium, Settings.GuiFontName)
-    }
 
     ; Define layout constants
     GuiWidth               := 560
@@ -91,17 +90,17 @@ try {
 
     btnSave.OnEvent("Click", SavePreferences)
 
+    DevicesGui.OnEvent("Close", SavePreferences)
+    DevicesGui.OnEvent("Escape", SavePreferences)
+
     if UseAcrylicGUI {
         ApplyThemeToGui(DevicesGui, "Dark")
-;        ApplyTransparencyToControls(SettingsGui)
         FrostedTheme.Apply(DevicesGui)
     } else {
         ApplyThemeToGui(DevicesGui)
         WatchedGUIs.Push(DevicesGui)
     }
 
-    DevicesGui.OnEvent("Close", HoverSettingsGuiUnregister)
-    DevicesGui.OnEvent("Escape", HoverSettingsGuiUnregister)
 
     DevicesGui.Show("w" GuiWidth " h" (yOffset + 75))
     btnSave.Focus()
@@ -143,12 +142,6 @@ try {
         }
     }
 
-
-    HoverSettingsGuiUnregister(*) {
-        MessageManager.Unregister(0x0200, OnMouseMoveHoverSettings)
-        MessageManager.Unregister(0x02A3, OnMouseLeaveHoverSettings)
-    }
-    
     SavePreferences(*) {
         ;OnMessage(0x0200, OnMouseMoveHoverSettings, 0)
         MessageManager.Unregister(0x0200, OnMouseMoveHoverSettings)

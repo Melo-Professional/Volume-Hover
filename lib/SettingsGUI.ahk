@@ -8,8 +8,7 @@
 ShowSettingsGUI() {
     global Settings, General, VolumeOSDNormal, VolumeOSDSlim, SettingsGui
 
-
-try {
+    try {
         if (HasBase(SettingsGui, Gui.Prototype) && WinExist(SettingsGui)) {
             WinActivate(SettingsGui)
             return
@@ -17,25 +16,33 @@ try {
     } catch {
     }
 
+;    OnMessage(0x0002, OnGuiDestroy)
 
+OnGuiDestroy(wParam, lParam, msg, hwnd) {
+    if (hwnd == SettingsGui.Hwnd) {
+        CleanDestroy()
+        ; Run cleanup here right as the window handle is destroyed
+    }
+}
     MyGuiTitle := App.Name . " Settings"
+    MyGuiOptions := "+LastFound -MinimizeBox"
+    SettingsGui := Gui(MyGuiOptions, MyGuiTitle)
+    SettingsGui.SetFont("s" Settings.GuiFontSizeMedium, Settings.GuiFontName)
+
+    UseAcrylicGUI := false
     UseAcrylicGUI := true
 
     if UseAcrylicGUI {
-        MyGuiOptions := "+LastFound -Caption"
-    } else {
-        MyGuiOptions := "+LastFound -SysMenu"
+        SettingsGui.Opt("-Caption")
+        titlebar := CustomTitleBar.Attach(SettingsGui, {
+            Title: MyGuiTitle,
+            ShowIcon: true,
+            Min: true,
+            Max: false,
+            Close: true
+        })
+        SettingsGui.Add("Text", "xm ym", " ")
     }
-
-    SettingsGui := Gui(MyGuiOptions, MyGuiTitle)
-
-    titlebar := CustomTitleBar.Attach(SettingsGui, {
-        Title: MyGuiTitle,
-        ShowIcon: true,
-        Min: true,
-        Max: false,
-        Close: true
-    })
 
 ;    titlebar.BypassTheme := false
 
@@ -45,12 +52,6 @@ try {
     TextHoverColor  := "FFFFFF"
     BGroundNormalColor  := "1b1b1b"
     BGroundHoverColor  := "313131"
-
-    if UseAcrylicGUI {
-        SettingsGui.SetFont("c" TextNormalColor " s" Settings.GuiFontSizeMedium, Settings.GuiFontName)
-    } else {
-        SettingsGui.SetFont("s" Settings.GuiFontSizeMedium, Settings.GuiFontName)
-    }
 
     ; 1. Initialize the custom drawing class
     OD_Colors.Init()
@@ -105,9 +106,15 @@ try {
         Hot1Desc.ThemeStyle := "Smooth"
         SettingsGui.SetFont("s8 w800")
         ;KeyUp := SettingsGui.Add("Button", "x" GuiWidth - SettingsGui.MarginX - 20 - 240 " yp-18 h32 w240")
-        Global optKeyUp := SettingsGui.Add("Text", "x" GuiWidth - SettingsGui.MarginX - 20 - 240 " yp-18 h32 w240 Center 0x0200 Background" BGroundNormalColor " +Border")
+        
+        if UseAcrylicGUI{
+            Global optKeyUp := SettingsGui.Add("Text", "x" GuiWidth - SettingsGui.MarginX - 20 - 240 " yp-18 h32 w240 Center 0x0200 Background" BGroundNormalColor " +Border")
+            optKeyUp.BypassTheme := true
+        } else {
+            Global optKeyUp := SettingsGui.Add("Text", "vStrong_opt1 x" GuiWidth - SettingsGui.MarginX - 20 - 240 " yp-18 h32 w240 Center 0x0200 +Border")
+        }
+
         HotkeyManager.BindControl(optKeyUp, General.KeyUp, VolUp_ActiveWin)
-        optKeyUp.BypassTheme := true
 
         if A_IsCompiled {
             SettingsGui.Add("Picture", "xm+20 y+30 w24 h-1 Icon-209", A_ScriptFullPath)
@@ -122,9 +129,15 @@ try {
         Hot2Desc.ThemeStyle := "Smooth"
         SettingsGui.SetFont("s8 w800")
         ;KeyDown := SettingsGui.Add("Button", "x" GuiWidth - SettingsGui.MarginX - 20 - 240 " yp-18 h32 w240")
-        Global optKeyDown := SettingsGui.Add("Text", "x" GuiWidth - SettingsGui.MarginX - 20 - 240 " yp-18 h32 w240 Center 0x0200 Background" BGroundNormalColor " +Border")
+
+        if UseAcrylicGUI{
+            Global optKeyDown := SettingsGui.Add("Text", "x" GuiWidth - SettingsGui.MarginX - 20 - 240 " yp-18 h32 w240 Center 0x0200 Background" BGroundNormalColor " +Border")
+            optKeyDown.BypassTheme := true
+        } else {
+            Global optKeyDown := SettingsGui.Add("Text", "vStrong_opt2 x" GuiWidth - SettingsGui.MarginX - 20 - 240 " yp-18 h32 w240 Center 0x0200 +Border")
+        }
+
         HotkeyManager.BindControl(optKeyDown, General.KeyDown, VolDown_ActiveWin)
-        optKeyDown.BypassTheme := true
 
         SettingsGui.SetFont("s10 w600")
         SettingsGui.Add("Text", "xm+20 y+40 w500", "Control hovered app volume")
@@ -148,9 +161,16 @@ try {
         Hot3Desc.ThemeStyle := "Smooth"
         SettingsGui.SetFont("s8 w800")
         ;MouseUp := SettingsGui.Add("Button", "x" GuiWidth - SettingsGui.MarginX - 20 - 240 " yp-18 h32 w240")
-        Global optMouseUp := SettingsGui.Add("Text", "x" GuiWidth - SettingsGui.MarginX - 20 - 240 " yp-18 h32 w240 Center 0x0200 Background" BGroundNormalColor " +Border")
+
+        if UseAcrylicGUI{
+            Global optMouseUp := SettingsGui.Add("Text", "x" GuiWidth - SettingsGui.MarginX - 20 - 240 " yp-18 h32 w240 Center 0x0200 Background" BGroundNormalColor " +Border")
+            optMouseUp.BypassTheme := true
+        } else {
+            Global optMouseUp := SettingsGui.Add("Text", "vStrong_opt3 x" GuiWidth - SettingsGui.MarginX - 20 - 240 " yp-18 h32 w240 Center 0x0200 +Border")
+        }
+
         HotkeyManager.BindControl(optMouseUp, General.MouseUp, VolUp_HoverWin)
-        optMouseUp.BypassTheme := true
+        ;optMouseUp.BypassTheme := true
 
         if A_IsCompiled {
             SettingsGui.Add("Picture", "xm+20 y+30 w24 h-1 Icon-210", A_ScriptFullPath)
@@ -164,9 +184,15 @@ try {
         Hot4Desc.ThemeStyle := "Smooth"
         SettingsGui.SetFont("s8 w800")
         ;MouseDown := SettingsGui.Add("Button", "x" GuiWidth - SettingsGui.MarginX - 20 - 240 " yp-18 h32 w240")
-        Global optMouseDown := SettingsGui.Add("Text", "x" GuiWidth - SettingsGui.MarginX - 20 - 240 " yp-18 h32 w240 Center 0x0200 Background" BGroundNormalColor " +Border")
+
+        if UseAcrylicGUI{
+            Global optMouseDown := SettingsGui.Add("Text", "x" GuiWidth - SettingsGui.MarginX - 20 - 240 " yp-18 h32 w240 Center 0x0200 Background" BGroundNormalColor " +Border")
+            optMouseDown.BypassTheme := true
+        } else {
+            Global optMouseDown := SettingsGui.Add("Text", "vStrong_opt4 x" GuiWidth - SettingsGui.MarginX - 20 - 240 " yp-18 h32 w240 Center 0x0200 +Border")
+        }
+
         HotkeyManager.BindControl(optMouseDown, General.MouseDown, VolDown_HoverWin)
-        optMouseDown.BypassTheme := true
 
     ; OSD
         SettingsGui.SetFont("s10 w850")
@@ -273,12 +299,9 @@ try {
 
     ; Button Reset
             ; 6.1 align
-        ;        btnX := SettingsGui.MarginX ; left
                 btnX := ((GuiWidth // 2) - BtnWidth - 20)
-        ;        btnX := GuiWidth - SettingsGui.MarginX - BtnWidth ; right
             
             if UseAcrylicGUI {
-;                SettingsGui.SetFont("s" Settings.GuiFontSizeBig " C727272 w700", Settings.GuiFontName)
                 SettingsGui.SetFont("s" Settings.GuiFontSizeBig " CWhite w700", Settings.GuiFontName)
                 btnReset := SettingsGui.Add("Text", "x" btnX " y+75 w" BtnWidth " h30 Center 0x0200 Background" BGroundNormalColor " +Border", "RESET")
                 btnReset.BypassTheme := true
@@ -290,14 +313,10 @@ try {
             btnReset.OnEvent("Click", ResetAll)
 
     ; Button OK
-            SettingsGui.SetFont("s" Settings.GuiFontSizeMedium " w300", Settings.GuiFontName)
             ; 6.1 align
-        ;        btnX := SettingsGui.MarginX ; left
                 btnX := ((GuiWidth // 2) + 20)
-        ;        btnX := GuiWidth - SettingsGui.MarginX - BtnWidth ; right
 
             if UseAcrylicGUI {
-;                SettingsGui.SetFont("s" Settings.GuiFontSizeBig " C727272 w700", Settings.GuiFontName)
                 SettingsGui.SetFont("s" Settings.GuiFontSizeBig " CWhite w700", Settings.GuiFontName)
                 btnSave := SettingsGui.Add("Text", "x" btnX " yp w" BtnWidth " h30 Center 0x0200 Background" BGroundNormalColor " +Border", "OK")
                 btnSave.BypassTheme := true
@@ -317,11 +336,9 @@ try {
     SendMessage(0x0153, -1, 24, optPosition)
     SendMessage(0x0153, 0, 30, optPosition)
 
-;        WatchedGUIs.Push(SettingsGui)
 
     if UseAcrylicGUI {
         ApplyThemeToGui(SettingsGui, "Dark")
-;        ApplyTransparencyToControls(SettingsGui)
         FrostedTheme.Apply(SettingsGui)
     } else {
         ApplyThemeToGui(SettingsGui)
@@ -334,6 +351,7 @@ try {
 
     SettingsGui.OnEvent("Close", CleanDestroy)
     SettingsGui.OnEvent("Escape", CleanDestroy)
+    ;titlebar.OnEvent("Escape", CleanDestroy)
 
 
     SettingsGui.Show("w" GuiWidth)
@@ -406,6 +424,9 @@ try {
         SettingsGui.Destroy()
         RemoveGuiFromArray(SettingsGui)
         SaveINI()
+        MessageManager.Unregister(0x0200, OnMouseMoveSettingsGUI)
+        MessageManager.Unregister(0x02A3, OnMouseLeaveSettingsGUI)
+        try HotkeyRecorder.Cancel()
     }
 
 

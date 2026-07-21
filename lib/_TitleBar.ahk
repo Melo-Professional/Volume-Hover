@@ -1,8 +1,8 @@
 /************************************************************************
  * @description Custom Title Bar (Isolated Window Messages)
  * @author Melo (melo@meloprofessional.com)
- * @date 2026/07/18
- * @version 1.4.0
+ * @date 2026/07/20
+ * @version 1.5.0 (better close handle)
  ***********************************************************************/
 
 /* HOW TO USE
@@ -117,25 +117,68 @@ class CustomTitleBar {
         }
 
         guiObj.OnEvent("Size", this.OnGuiSize.Bind(this))
-        
-        ; --- FIXED HERE: Intercept the Close/Destroy sequence to clear cache ---
-;        guiObj.OnEvent("Close", (go) => this.TitleBars.Delete(go.Hwnd))
-;        guiObj.OnEvent("Escape", (go) => this.TitleBars.Delete(go.Hwnd))
         guiObj.OnEvent("Close", (go) => this.CleanClose(go))
         guiObj.OnEvent("Escape", (go) => this.CleanClose(go))
 
         this.RenderButtons(tb)
+        SetTimer(this.Prune.Bind(this), 1000)
         return tb
     }
 
-    static CleanClose(go) {
+    static Prune() {
+        for parentHwnd, tb in this.TitleBars {
+            if (!DllCall("user32\IsWindow", "Ptr", parentHwnd))
+                this.TitleBars.Delete(parentHwnd)
+        }
+
+        ; If no GUIs remain, unhook mouse monitors and stop the timer
+        if (this.TitleBars.Count == 0 && this.RegisteredMouseMonitor) {
+            if IsSet(MessageManager) {
+                MessageManager.Unregister(0x0201, this.WM_LBUTTONDOWN.Bind(this))
+                MessageManager.Unregister(0x0200, this.HandleMouseMove.Bind(this))
+                MessageManager.Unregister(0x02A3, this.HandleMouseLeave.Bind(this))
+            } else {
+                OnMessage(0x0201, this.WM_LBUTTONDOWN.Bind(this), 0)
+                OnMessage(0x0200, this.HandleMouseMove.Bind(this), 0)
+                OnMessage(0x02A3, this.HandleMouseLeave.Bind(this), 0)
+            }
+            this.RegisteredMouseMonitor := false
+            SetTimer(this.Prune.Bind(this), 0) ; Turn off timer
+        }
+    }
+    
+
+/*     static CleanClose(go) {
         this.TitleBars.Delete(go.Hwnd)
         if IsSet(MessageManager) {
             MessageManager.Unregister(0x0201, this.WM_LBUTTONDOWN.Bind(this)) ; Safe Click-to-drag
             MessageManager.Unregister(0x0200, this.HandleMouseMove.Bind(this))  ; Track hover onset
             MessageManager.Unregister(0x02A3, this.HandleMouseLeave.Bind(this)) ; Track hover exit
+        } else {
+            OnMessage(0x0201, this.WM_LBUTTONDOWN.Bind(this), 0)
+            OnMessage(0x0200, this.HandleMouseMove.Bind(this), 0)
+            OnMessage(0x02A3, this.HandleMouseLeave.Bind(this), 0)
         }
+    }
+ */
 
+    static CleanClose(go) {
+        if this.TitleBars.Has(go.Hwnd)
+            this.TitleBars.Delete(go.Hwnd)
+        
+        ; Only unhook global mouse monitors when ALL custom title bars are closed
+        if (this.TitleBars.Count == 0) {
+            if IsSet(MessageManager) {
+                MessageManager.Unregister(0x0201, this.WM_LBUTTONDOWN.Bind(this))
+                MessageManager.Unregister(0x0200, this.HandleMouseMove.Bind(this))
+                MessageManager.Unregister(0x02A3, this.HandleMouseLeave.Bind(this))
+            } else {
+                OnMessage(0x0201, this.WM_LBUTTONDOWN.Bind(this), 0)
+                OnMessage(0x0200, this.HandleMouseMove.Bind(this), 0)
+                OnMessage(0x02A3, this.HandleMouseLeave.Bind(this), 0)
+            }
+            this.RegisteredMouseMonitor := false
+        }
     }
 
     static RenderButtons(tb) {
@@ -152,8 +195,9 @@ class CustomTitleBar {
         if (cfg.Close) {
             btnX := "X" . (w - btnWidth)
             tb.Buttons["Close"] := guiObj.Add("Text", btnX . " Y0 W" btnWidth " H" btnHeight " +Center +0x200 +0x100 +Background" bckcolor, Chr(0xE8BB))
-            ; --- FIXED HERE: Clear cache on manual destroy call too ---
-            tb.Buttons["Close"].OnEvent("Click", (*) => (this.TitleBars.Delete(guiObj.Hwnd), guiObj.Destroy()))
+            ;tb.Buttons["Close"].OnEvent("Click", (*) => (this.TitleBars.Delete(guiObj.Hwnd), guiObj.Destroy()))
+            ; NEW (Fires OnEvent("Close") automatically)
+            tb.Buttons["Close"].OnEvent("Click", (*) => PostMessage(0x0010, 0, 0, guiObj.Hwnd))
         }
         if (cfg.Max) {
             offset := cfg.Close ? 2 : 1

@@ -1,8 +1,8 @@
 /************************************************************************
  * @description Menu Template
  * @author Melo (melo@meloprofessional.com)
- * @date 2026/07/05
- * @version 2.3.0
+ * @date 2026/07/20
+ * @version 2.5.1
  ***********************************************************************/
 
 #Requires AutoHotkey v2.0
@@ -114,7 +114,7 @@ StartMenu() {
 
     SettingsLoadStartOnBoot(appName) {
         try {
-            currentvalue := RegRead("HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run", appName . "_" . App.Version)
+            currentvalue := RegRead("HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run", appName)
             return (currentvalue = '"' A_AhkPath '"')
         } catch {
             return false
@@ -129,7 +129,7 @@ StartMenu() {
             }
         }
         if enable {
-            RegWrite('"' A_AhkPath '"', "REG_SZ", runKey, appName . "_" . App.Version)
+            RegWrite('"' A_AhkPath '"', "REG_SZ", runKey, appName)
         }
     }
 
@@ -171,13 +171,17 @@ StartMenu() {
     }
 
     ; --- FIRST RUN NOTIFICATION ---
-    RegKeyPath := "HKCU\Software\" . appName . "\" . App.Version
-    firstrunpath := ""
+    Global FirstRun := false
+    RegKeyPath  := "HKCU\Software\" . appName
+    RegVersion  := ""
+    RegPath     := ""
     try {
-        firstrunpath := RegRead(RegKeyPath, "FirstRun")
+        RegVersion      := RegRead(RegKeyPath, "version")
+        RegPath         := RegRead(RegKeyPath, "path")
     }
-    if !(firstrunpath = '"' A_AhkPath '"') {
-        RegWrite('"' A_AhkPath '"', "REG_SZ", RegKeyPath, "FirstRun")
+    if !((RegPath == '"' A_AhkPath '"') && (RegVersion == App.Version)) {
+        RegWrite( App.Version, "REG_SZ", RegKeyPath, "version")
+        RegWrite('"' A_AhkPath '"', "REG_SZ", RegKeyPath, "path")
         if A_IsCompiled {
             SettingsSaveStartOnBoot(true, appName)
             MoreMenu.Check("Start on Boot")
