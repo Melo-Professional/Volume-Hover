@@ -5,12 +5,12 @@
  * @author Melo (melo@meloprofessional.com)
  * @date 2026/07/20
  * @releasedate 2026/07/07
- * @version 1.3.203.6
+ * @version 1.3.210.0
  ***********************************************************************/
 
 AppName := "Volume Hover"
 ;@Ahk2Exe-Let U_AppName = %A_PriorLine%
-AppVersion := "1.3.203.6"
+AppVersion := "1.3.210.0"
 ;@Ahk2Exe-Let U_Version = %A_PriorLine%
 AppDescription := "Controls application audio volumes instantly by hovering over the Windows system tray icon."
 ;@Ahk2Exe-AddResource .\images\keyboard.ico, 209
@@ -47,20 +47,20 @@ A_HotkeyInterval := 1000
 #Include *i <_SaveSettings>
 #Include *i <_MessageManager>
 #Include *i <_Theme>
+#Include *i <_FrostedTheme>
+#Include *i <_TitleBar>
 #Include *i <_OSDCustom>
 #Include *i <_ModernSlider>
 ;#Include *i <_Color_Picker_Dialog>
 ;#Include *i <_ReloadWithArgs>
-#Include <_TitleBar>
-#Include *i <_FrostedTheme>
 #Include *i <_HotkeysRecorder>
+#Include <Vars_Custom>
 #Include *i <_SplashScreen>
 #Include *i <_About>
 ;#Include *i <_Help>
 #Include *i <_Menu>
 #Include *i <_ODColors>
 
-#Include <Vars_Custom>
 #Include <Menu_Custom>
 #Include <SettingsGUI>
 #Include <AudioSessions>
@@ -306,3 +306,4 @@ if isSet(FirstRun) && FirstRun{
 }
 
 ;ShowSettingsGUI()
+;ShowAboutGUI()

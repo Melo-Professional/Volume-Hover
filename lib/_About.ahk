@@ -2,7 +2,7 @@
  * @description About GUI
  * @author Melo (melo@meloprofessional.com)
  * @date 2026/07/20
- * @version 1.7.5 (Theme support fix)
+ * @version 1.7.6 (Empty title bar)
  ***********************************************************************/
 
 #Requires AutoHotkey v2.0
@@ -13,18 +13,21 @@ ShowAboutGUI() {
     MyGui := Gui(MyGuiOptions, MyGuiTitle)
     MyGui.SetFont("s" Settings.GuiFontSizeMedium, Settings.GuiFontName)
 
-    UseAcrylicGUI := false
     if IsFunctionDefined("CustomTitleBar") {
-        UseAcrylicGUI := true
         MyGui.Opt("-Caption")
         titlebar := %"CustomTitleBar"%.Attach(MyGui, {
-            Title: MyGuiTitle,
+            Title: "",
             ShowIcon: false,
             Min: false,
             Max: false,
             Close: false
         })
         MyGui.Add("Text", "xm ym", " ")
+    }
+
+    UseAcrylicGUI := false
+    if IsFunctionDefined("FrostedTheme") {
+        UseAcrylicGUI := true
     }
 
     DllCall("dwmapi\DwmSetWindowAttribute", "Ptr", MyGui.Hwnd, "UInt", 33, "Int*", 2, "UInt", 4)

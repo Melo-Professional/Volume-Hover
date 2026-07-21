@@ -426,7 +426,7 @@ OnGuiDestroy(wParam, lParam, msg, hwnd) {
         SaveINI()
         MessageManager.Unregister(0x0200, OnMouseMoveSettingsGUI)
         MessageManager.Unregister(0x02A3, OnMouseLeaveSettingsGUI)
-        try HotkeyRecorder.Cancel()
+;        try HotkeyRecorder.Cancel()
     }
 
 

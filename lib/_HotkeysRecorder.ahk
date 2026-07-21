@@ -1,10 +1,9 @@
 /************************************************************************
- * @description Lib to record custom hotkeys
+ * @description Lib to record custom hotkeys with GUI existence watchdog
  * @author Melo
  * @date 2026/07/20
- * @version 1.3.3 (listening message)
+ * @version 1.4.0 (watchdog added)
  ***********************************************************************/
-
 
 /* EXAMPLE
 
@@ -62,10 +61,19 @@ class HotkeyManager {
     
     static _OnControlClicked(guiCtrl, *) {
         guiCtrl.Text := "`tListening... (ESC to Clear)`t     ⌨"
-        HotkeyRecorder.Start(ObjBindMethod(this, "_OnHotkeyCaptured", guiCtrl))
+        ; Pass guiCtrl to Start so HotkeyRecorder can monitor its HWND handle
+        HotkeyRecorder.Start(ObjBindMethod(this, "_OnHotkeyCaptured", guiCtrl), guiCtrl)
     }
     
     static _OnHotkeyCaptured(guiCtrl, hotkeyStr) {
+        ; Check if control still exists before trying to access its properties
+        try {
+            if (!guiCtrl.Hwnd)
+                return
+        } catch {
+            return
+        }
+
         oldHotkey := guiCtrl.CurrentHotkey
         callbackFunc := guiCtrl.ActionCallback
         
@@ -162,14 +170,22 @@ class HotkeyRecorder {
     static CurrentCallback := ""
     static InputLogger := ""
     static _mouseCb := ""
+    static WatchHwnd := 0
+    static _watchdogTimer := ""
     
-    static Start(callback) {
+    static Start(callback, targetCtrl := "") {
         if (this.IsRecording) {
             this.Cancel()
         }
             
         this.IsRecording := true
         this.CurrentCallback := callback
+        
+        ; Store handle for window/control monitoring
+        this.WatchHwnd := 0
+        if IsObject(targetCtrl) {
+            try this.WatchHwnd := targetCtrl.Hwnd
+        }
         
         this.InputLogger := InputHook("L0 I1")
         this.InputLogger.KeyOpt("{All}", "+N +S")
@@ -190,8 +206,24 @@ class HotkeyRecorder {
             OnMessage(0x0207, this._mouseCb)
             OnMessage(0x020A, this._mouseCb)
         }
+
+        ; Start 250ms watchdog to ensure target handle is alive
+        if (this.WatchHwnd) {
+            this._watchdogTimer := ObjBindMethod(this, "_CheckGuiAlive")
+            SetTimer(this._watchdogTimer, 250)
+        }
     }
     
+    static _CheckGuiAlive() {
+        if (!this.IsRecording)
+            return
+            
+        ; If HWND no longer exists, user closed/destroyed the GUI
+        if (!WinExist("ahk_id " . this.WatchHwnd)) {
+            this.Cancel()
+        }
+    }
+
     static Cancel() {
         if (!this.IsRecording) {
             return
@@ -205,6 +237,14 @@ class HotkeyRecorder {
     
     static _Cleanup() {
         this.IsRecording := false
+        
+        ; Stop timer
+        if (this._watchdogTimer) {
+            SetTimer(this._watchdogTimer, 0)
+            this._watchdogTimer := ""
+        }
+        this.WatchHwnd := 0
+
         if (GetKeyState("LWin") || GetKeyState("RWin")) {
             Send("{Blind}{Ctrl}")
         }
