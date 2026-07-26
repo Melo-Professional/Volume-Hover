@@ -1,6 +1,6 @@
 # Volume-Hover
 
-![](https://img.shields.io/static/v1?label=made%20with&message=%E2%9D%A4&color=red)
+![version](https://img.shields.io/github/v/release/Melo-Professional/Volume-Hover?sort=semver&color=purple)![](https://img.shields.io/static/v1?label=made%20with&message=%E2%9D%A4&color=red)
 
 Controls application audio volumes instantly by
 
