@@ -1,7 +1,12 @@
-# Volume-Hover
+<h1 align="center">Volume Hover</h1>
+<p align="center">
+  <a href="https://github.com/Melo-Professional/Volume-Hover/releases"><img src="https://img.shields.io/github/v/release/Melo-Professional/Volume-Hover?sort=semver&color=purple" alt="version"></a>
+    <a href="#screenshots"><img src="https://img.shields.io/static/v1?label=made%20with&message=%E2%9D%A4&color=red"></a>
+</p>
 
-![version](https://img.shields.io/github/v/release/Melo-Professional/Volume-Hover?sort=semver&color=purple)![](https://img.shields.io/static/v1?label=made%20with&message=%E2%9D%A4&color=red)
+<p align="center">Control Audio Volume of Programs</p>
 
+---
 Controls application audio volumes instantly by
 
 - *hovering over the Windows system tray icon*
