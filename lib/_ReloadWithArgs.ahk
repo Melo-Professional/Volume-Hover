@@ -1,8 +1,8 @@
 /************************************************************************
  * @description Reload passing a dynamic call with a parameter
  * @author Melo (melo@meloprofessional.com)
- * @date 2026/07/13
- * @version 1.0.0
+ * @date 2026/07/22
+ * @version 1.1.0
  ***********************************************************************/
 
 
@@ -15,11 +15,6 @@ ReloadWithArgs(callerName := "", paramValue := "") {
         }
     }
 
-    OnMessage(0x020A, OnMouseWheel, 0)
-    OnMessage(0x404,  OnTrayMessage, 0)
-    OnMessage(0x0006, WM_ACTIVATE, 0)
-    OnMessage(0x0115, WM_VSCROLL, 0)
-
     if A_IsCompiled {
         Run('"' A_ScriptFullPath '" /restart' argString)
     } else {
@@ -27,7 +22,7 @@ ReloadWithArgs(callerName := "", paramValue := "") {
     }
     ExitApp()
 }
-
+/* 
 ; CHECK RELOAD ARGUMENTS
 if (A_Args.Length > 0) {
     targetFuncName := A_Args[1]
@@ -44,3 +39,4 @@ if (A_Args.Length > 0) {
         MsgBoxCustom(,,,e)
     }
 }
+ */

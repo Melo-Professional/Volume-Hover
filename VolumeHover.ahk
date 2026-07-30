@@ -3,25 +3,25 @@
 /************************************************************************
  * @description Controls application audio volumes instantly by hovering over the Windows system tray icon.
  * @author Melo (melo@meloprofessional.com)
- * @date 2026/07/20
+ * @date 2026/07/30
  * @releasedate 2026/07/07
- * @version 1.3.210.0
+ * @version 1.4.4.0
  ***********************************************************************/
 
 AppName := "Volume Hover"
 ;@Ahk2Exe-Let U_AppName = %A_PriorLine%
-AppVersion := "1.3.210.0"
+AppVersion := "1.4.4.0"
 ;@Ahk2Exe-Let U_Version = %A_PriorLine%
 AppDescription := "Controls application audio volumes instantly by hovering over the Windows system tray icon."
-;@Ahk2Exe-AddResource .\images\keyboard.ico, 209
-;@Ahk2Exe-AddResource .\images\mouse.ico, 210
-;@Ahk2Exe-AddResource .\images\OSDType.ico, 211
-;@Ahk2Exe-AddResource .\images\monitors.ico, 212
-;@Ahk2Exe-AddResource .\images\position.ico, 213
+;@Ahk2Exe-AddResource .\resources\keyboard.ico, 209
+;@Ahk2Exe-AddResource .\resources\mouse.ico, 210
+;@Ahk2Exe-AddResource .\resources\OSDType.ico, 211
+;@Ahk2Exe-AddResource .\resources\monitors.ico, 212
+;@Ahk2Exe-AddResource .\resources\position.ico, 213
 
 ;@endregion
 
-backupMode := "AppVersionAndMinutes"
+;_bkpMode := "AppVersionAndMinutes"
 
 ;@region Directives
 #Requires AutoHotkey v2.0
@@ -307,3 +307,4 @@ if isSet(FirstRun) && FirstRun{
 
 ;ShowSettingsGUI()
 ;ShowAboutGUI()
+;^+p::Reload()

@@ -428,11 +428,31 @@ OnMouseWheel(wParam, lParam, msg, hwnd) {
     if (MainGui == "" || !WinExist(MainGui.Hwnd))
         return
     
-    if (VirtualGuiHeight > CurrentGuiHeight) {
-        wheelDelta := (wParam << 32 >> 48)
-        scrollAmount := (wheelDelta > 0) ? -24 : 24
-        ScrollGuiWindow(scrollAmount)
-        return 0
+    ; 1. Extract screen coordinates from lParam (WM_MOUSEWHEEL passes screen coords)
+    xScreen := lParam & 0xFFFF
+    if (xScreen > 0x7FFF) 
+        xScreen -= 0x10000
+        
+    yScreen := (lParam >> 16) & 0xFFFF
+    if (yScreen > 0x7FFF)
+        yScreen -= 0x10000
+
+    ; 2. Convert screen coordinates to client coordinates relative to MainGui
+    pt := Buffer(8)
+    NumPut("Int", xScreen, pt, 0)
+    NumPut("Int", yScreen, pt, 4)
+    DllCall("ScreenToClient", "Ptr", MainGui.Hwnd, "Ptr", pt)
+    mouseX := NumGet(pt, 0, "Int")
+    
+    ; 3. If mouse is on the left side (< 125), scroll the main GUI. 
+    ; If >= 125, do nothing here and let ModernSlider.HandleWheelMessage take over.
+    if (mouseX < 125) {
+        if (VirtualGuiHeight > CurrentGuiHeight) {
+            wheelDelta := (wParam << 32 >> 48)
+            scrollAmount := (wheelDelta > 0) ? -24 : 24
+            ScrollGuiWindow(scrollAmount)
+            return 0
+        }
     }
 }
 

@@ -62,6 +62,9 @@ OnGuiDestroy(wParam, lParam, msg, hwnd) {
     BtnWidth                := 100
     SettingsGui.MarginX     := 50
     SettingsGui.MarginY     := 30
+	elMargYBig				:= 25
+	elMargYMedium			:= 20
+	elMargYSmall			:= 15
 /* 
     ; 1. Icon
     try {
@@ -81,11 +84,11 @@ OnGuiDestroy(wParam, lParam, msg, hwnd) {
 
     ; HOTKEYS
         SettingsGui.SetFont("s10 w850")
-        TitleHotkeys := SettingsGui.Add("Text", "xm y+30 w200", "HotKeys")
+        TitleHotkeys := SettingsGui.Add("Text", "xm y+" elMargYBig " w200", "HotKeys")
         TitleHotkeys.ThemeStyle := "Strong"
 
         SettingsGui.SetFont("s10 w600")
-        SettingsGui.Add("Text", "xm+20 y+30 w500", "Control foreground app volume")
+        SettingsGui.Add("Text", "xm+20 y+" elMargYSmall " w500", "Control foreground app volume")
         SettingsGui.SetFont("s13 w100 norm")
         Hot1Desc := SettingsGui.Add("Text", "xm+25 y+0 0x0200", "ⓘ")
         Hot1Desc.ThemeStyle := "Smooth"
@@ -94,9 +97,9 @@ OnGuiDestroy(wParam, lParam, msg, hwnd) {
         Hot1Desc.ThemeStyle := "Smooth"
 
         if A_IsCompiled {
-            SettingsGui.Add("Picture", "xm+20 y+30 w24 h-1 Icon-209", A_ScriptFullPath)
+            SettingsGui.Add("Picture", "xm+20 y+" elMargYMedium " w24 h-1 Icon-209", A_ScriptFullPath)
         } else {
-            SettingsGui.Add("Picture", "xm+20 y+30 w24 h-1", A_ScriptDir . "\images\keyboard.ico")
+            SettingsGui.Add("Picture", "xm+20 y+" elMargYMedium " w24 h-1", A_ScriptDir . "\resources\keyboard.ico")
         }
 
         SettingsGui.SetFont("s11 w400 Norm")
@@ -117,9 +120,9 @@ OnGuiDestroy(wParam, lParam, msg, hwnd) {
         HotkeyManager.BindControl(optKeyUp, General.KeyUp, VolUp_ActiveWin)
 
         if A_IsCompiled {
-            SettingsGui.Add("Picture", "xm+20 y+30 w24 h-1 Icon-209", A_ScriptFullPath)
+            SettingsGui.Add("Picture", "xm+20 y+" elMargYMedium " w24 h-1 Icon-209", A_ScriptFullPath)
         } else {
-            SettingsGui.Add("Picture", "xm+20 y+30 w24 h-1", A_ScriptDir . "\images\keyboard.ico")
+            SettingsGui.Add("Picture", "xm+20 y+" elMargYMedium " w24 h-1", A_ScriptDir . "\resources\keyboard.ico")
         }
 
         SettingsGui.SetFont("s11 w400")
@@ -140,7 +143,7 @@ OnGuiDestroy(wParam, lParam, msg, hwnd) {
         HotkeyManager.BindControl(optKeyDown, General.KeyDown, VolDown_ActiveWin)
 
         SettingsGui.SetFont("s10 w600")
-        SettingsGui.Add("Text", "xm+20 y+40 w500", "Control hovered app volume")
+        SettingsGui.Add("Text", "xm+20 y+" elMargYBig " w500", "Control hovered app volume")
         SettingsGui.SetFont("s13 w100 norm")
         Hot1Desc := SettingsGui.Add("Text", "xm+25 y+0 0x0200", "ⓘ")
         Hot1Desc.ThemeStyle := "Smooth"
@@ -149,9 +152,9 @@ OnGuiDestroy(wParam, lParam, msg, hwnd) {
         Hot1Desc.ThemeStyle := "Smooth"
 
         if A_IsCompiled {
-            SettingsGui.Add("Picture", "xm+20 y+30 w24 h-1 Icon-210", A_ScriptFullPath)
+            SettingsGui.Add("Picture", "xm+20 y+" elMargYMedium " w24 h-1 Icon-210", A_ScriptFullPath)
         } else {
-            SettingsGui.Add("Picture", "xm+20 y+30 w24 h-1", A_ScriptDir . "\images\mouse.ico")
+            SettingsGui.Add("Picture", "xm+20 y+" elMargYMedium " w24 h-1", A_ScriptDir . "\resources\mouse.ico")
         }
 
         SettingsGui.SetFont("s11 w400 Norm")
@@ -173,9 +176,9 @@ OnGuiDestroy(wParam, lParam, msg, hwnd) {
         ;optMouseUp.BypassTheme := true
 
         if A_IsCompiled {
-            SettingsGui.Add("Picture", "xm+20 y+30 w24 h-1 Icon-210", A_ScriptFullPath)
+            SettingsGui.Add("Picture", "xm+20 y+" elMargYMedium " w24 h-1 Icon-210", A_ScriptFullPath)
         } else {
-            SettingsGui.Add("Picture", "xm+20 y+30 w24 h-1", A_ScriptDir . "\images\mouse.ico")
+            SettingsGui.Add("Picture", "xm+20 y+" elMargYMedium " w24 h-1", A_ScriptDir . "\resources\mouse.ico")
         }
         SettingsGui.SetFont("s11 w400")
         SettingsGui.Add("Text", "x+20 yp-7 w200", "Volume Down")
@@ -196,7 +199,7 @@ OnGuiDestroy(wParam, lParam, msg, hwnd) {
 
     ; OSD
         SettingsGui.SetFont("s10 w850")
-        TitleUseOSD := SettingsGui.Add("Text", "xm y+70 w200", "On Screen Display")
+        TitleUseOSD := SettingsGui.Add("Text", "xm y+" elMargYBig " w200", "On Screen Display")
         TitleUseOSD.ThemeStyle := "Strong"
 
     ; Use OSD
@@ -209,20 +212,23 @@ OnGuiDestroy(wParam, lParam, msg, hwnd) {
         }
 
         if A_IsCompiled {
-            SettingsGui.Add("Picture", "xm+20 y+30 w24 h-1 Icon-211", A_ScriptFullPath)
+            SettingsGui.Add("Picture", "xm+20 y+" elMargYMedium " w24 h-1 Icon-211", A_ScriptFullPath)
         } else {
-            SettingsGui.Add("Picture", "xm+20 y+30 w24 h-1", A_ScriptDir . "\images\OSDType.ico")
+            SettingsGui.Add("Picture", "xm+20 y+" elMargYMedium " w24 h-1", A_ScriptDir . "\resources\OSDType.ico")
         }
 
         SettingsGui.SetFont("s11 w400")
         SettingsGui.Add("Text", "x+20 yp-7 w200", "Type")
         SettingsGui.SetFont("s9 w100")
-        UseOSDDesc := SettingsGui.Add("Text", "y+1 w200", "Select the OSD layout")
+        UseOSDDesc := SettingsGui.Add("Text", "y+1 w300", "Select the OSD layout")
         UseOSDDesc.ThemeStyle := "Smooth"
         SettingsGui.SetFont("s11 w400")
 ;        optUseOSD := SettingsGui.AddDDL("x" GuiWidth - SettingsGui.MarginX - 20 - 100 " yp-17 r7 w100 Choose" . StartingIndex, General.OSDList)
         Global optUseOSD := SettingsGui.AddDDL("x" GuiWidth - SettingsGui.MarginX - 20 - 100 " yp-17 r7 w100 +0x0210 Choose" . StartingIndex, General.OSDList)
         ;optUseOSD.BypassTheme := true
+        SettingsGui.SetFont("s1 w100")
+        UseOSDDesc := SettingsGui.Add("Text", "y+3")
+        SettingsGui.SetFont("s9 w100")
 
     ; Monitor list
         OSDMonitorList := ["Auto"]
@@ -239,20 +245,23 @@ OnGuiDestroy(wParam, lParam, msg, hwnd) {
         }
 
         if A_IsCompiled {
-            SettingsGui.Add("Picture", "xm+20 y+30 w24 h-1 Icon-212", A_ScriptFullPath)
+            SettingsGui.Add("Picture", "xm+20 y+" elMargYMedium " w24 h-1 Icon-212", A_ScriptFullPath)
         } else {
-            SettingsGui.Add("Picture", "xm+20 y+30 w24 h-1", A_ScriptDir . "\images\monitors.ico")
+            SettingsGui.Add("Picture", "xm+20 y+" elMargYMedium " w24 h-1", A_ScriptDir . "\resources\monitors.ico")
         }
 
         SettingsGui.SetFont("s11 w400")
         SettingsGui.Add("Text", "x+20 yp-7 w200", "Monitor")
         SettingsGui.SetFont("s9 w100")
-        MonitorDesc := SettingsGui.Add("Text", "y+1 w200", "Monitor number to place OSD")
+        MonitorDesc := SettingsGui.Add("Text", "y+1 w300", "Monitor number to place OSD")
         MonitorDesc.ThemeStyle := "Smooth"
         SettingsGui.SetFont("s11 w400")
         ;optMonitor := SettingsGui.AddDDL("x" GuiWidth - SettingsGui.MarginX - 20 - 80 " yp-17 r12 w80 Choose" . StartingIndex, OSDMonitorList)
         Global optMonitor := SettingsGui.AddDDL("x" GuiWidth - SettingsGui.MarginX - 20 - 100 " yp-17 r12 w100 +0x0210 Choose" . StartingIndex, OSDMonitorList)
         ;optMonitor.BypassTheme := true
+        SettingsGui.SetFont("s1 w100")
+        UseOSDDesc := SettingsGui.Add("Text", "y+3")
+        SettingsGui.SetFont("s9 w100")
 
         if (optUseOSD.Text = "Disable")
             optMonitor.Enabled := false
@@ -268,20 +277,23 @@ OnGuiDestroy(wParam, lParam, msg, hwnd) {
         }
 
         if A_IsCompiled {
-            SettingsGui.Add("Picture", "xm+20 y+30 w24 h-1 Icon-213", A_ScriptFullPath)
+            SettingsGui.Add("Picture", "xm+20 y+" elMargYMedium " w24 h-1 Icon-213", A_ScriptFullPath)
         } else {
-            SettingsGui.Add("Picture", "xm+20 y+30 w24 h-1", A_ScriptDir . "\images\position.ico")
+            SettingsGui.Add("Picture", "xm+20 y+" elMargYMedium " w24 h-1", A_ScriptDir . "\resources\position.ico")
         }
 
         SettingsGui.SetFont("s11 w400")
         SettingsGui.Add("Text", "x+20 yp-7 w200", "Position")
         SettingsGui.SetFont("s9 w100")
-        PosDesc := SettingsGui.Add("Text", "y+1 w200", "Vertical alignment on Screen")
+        PosDesc := SettingsGui.Add("Text", "y+1 w300", "Vertical alignment on Screen")
         PosDesc.ThemeStyle := "Smooth"
         SettingsGui.SetFont("s11 w400")
         ;optPosition := SettingsGui.AddDDL("x" GuiWidth - SettingsGui.MarginX - 20 - 100 " yp-17 r7 w100 Choose" . StartingIndex, General.OSDPositionList)
         Global optPosition := SettingsGui.AddDDL("x" GuiWidth - SettingsGui.MarginX - 20 - 100 " yp-17 r12 w100 +0x0210 Choose" . StartingIndex, General.OSDPositionList)
         ;optPosition.BypassTheme := true
+        SettingsGui.SetFont("s1 w100")
+        UseOSDDesc := SettingsGui.Add("Text", "y+3")
+        SettingsGui.SetFont("s9 w100")
 
         for odctrl in [ optUseOSD, optMonitor, optPosition] {
             odctrl.OwnerDraw := {
@@ -303,11 +315,11 @@ OnGuiDestroy(wParam, lParam, msg, hwnd) {
             
             if UseAcrylicGUI {
                 SettingsGui.SetFont("s" Settings.GuiFontSizeBig " CWhite w700", Settings.GuiFontName)
-                btnReset := SettingsGui.Add("Text", "x" btnX " y+75 w" BtnWidth " h30 Center 0x0200 Background" BGroundNormalColor " +Border", "RESET")
+                btnReset := SettingsGui.Add("Text", "x" btnX " y+" elMargYBig " w" BtnWidth " h30 Center 0x0200 Background" BGroundNormalColor " +Border", "RESET")
                 btnReset.BypassTheme := true
             } else {
                 SettingsGui.SetFont("s" Settings.GuiFontSizeMedium " w300", Settings.GuiFontName)
-                btnReset := SettingsGui.AddButton("x" btnX " y+75 w" BtnWidth " h30 Default", "&Reset")
+                btnReset := SettingsGui.AddButton("x" btnX " y+" elMargYBig " w" BtnWidth " h30 Default", "&Reset")
             }
 
             btnReset.OnEvent("Click", ResetAll)

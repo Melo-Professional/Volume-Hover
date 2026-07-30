@@ -1,6 +1,6 @@
 /************************************************************************
  * @description OSDCustom (Dynamic Styling & Multi-Column Grid Engine)
- * @version 6.14.0 (MessageManager )
+ * @version 6.15.0 (Default Text for show )
  ***********************************************************************/
 
 #Requires AutoHotkey v2.0
@@ -215,7 +215,7 @@ class OSDCustom {
 
     ; --- Main Show method ---
 
-    Show(Position := "", TimeOut := "", Progress := "") {
+    Show(Text?, Position := "", TimeOut := "", Progress := "") {
         Critical("On")
         this.InternalState := "Assembling"
 
@@ -230,8 +230,12 @@ class OSDCustom {
         if (Progress !== "")
             this.ProgressValue := Progress
 
-        if (this.Cells.Length == 0) {
-            this.SetCellText(1, 1, A_LineFile, "Center")
+        if !IsSet(Text) && (this.Cells.Length == 0) {
+            this.SetCellText(2, 2, A_LineFile, "Center")
+        }
+
+        if IsSet(Text) {
+            this.SetCellText(2, 2, Text, "Center")
         }
 
         if (this.MyGui) {

@@ -83,7 +83,7 @@ SettingsShowOSD(program, currentVol) {
         VolumeOSDNormal.UpdateProgressObject(VolProgressObjSlim, currentVol)
         VolumeOSDNormal.UpdateTextObject(ProgObjSlim, program)
         VolumeOSDNormal.UpdateTextObject(VolTextObjSlim, currentVol, 2000)
-        VolumeOSDNormal.Show(, 5000)
+        VolumeOSDNormal.Show(,, 5000)
 
     } else if (General.UseOSD = "Slim") {
 
@@ -91,7 +91,7 @@ SettingsShowOSD(program, currentVol) {
         VolumeOSDSlim.UpdateProgressObject(VolProgressObjNormal, currentVol)
         VolumeOSDSlim.UpdateTextObject(ProgObjNormal, program)
         VolumeOSDSlim.UpdateTextObject(VolTextObjNormal, currentVol, 2000)
-        VolumeOSDSlim.Show(, 5000)
+        VolumeOSDSlim.Show(,, 5000)
     }
 }
 

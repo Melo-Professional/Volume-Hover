@@ -2,7 +2,7 @@
  * @description About GUI
  * @author Melo (melo@meloprofessional.com)
  * @date 2026/07/20
- * @version 1.7.6 (Empty title bar)
+ * @version 1.7.7 (Icon distance)
  ***********************************************************************/
 
 #Requires AutoHotkey v2.0
@@ -12,6 +12,7 @@ ShowAboutGUI() {
     MyGuiOptions := "+LastFound -SysMenu"
     MyGui := Gui(MyGuiOptions, MyGuiTitle)
     MyGui.SetFont("s" Settings.GuiFontSizeMedium, Settings.GuiFontName)
+    offset := 5
 
     if IsFunctionDefined("CustomTitleBar") {
         MyGui.Opt("-Caption")
@@ -22,37 +23,34 @@ ShowAboutGUI() {
             Max: false,
             Close: false
         })
-        MyGui.Add("Text", "xm ym", " ")
+        offset := 40
+        DllCall("dwmapi\DwmSetWindowAttribute", "Ptr", MyGui.Hwnd, "UInt", 33, "Int*", 2, "UInt", 4)
     }
 
     UseAcrylicGUI := false
     if IsFunctionDefined("FrostedTheme") {
         UseAcrylicGUI := true
+        offset := 30
     }
-
-    DllCall("dwmapi\DwmSetWindowAttribute", "Ptr", MyGui.Hwnd, "UInt", 33, "Int*", 2, "UInt", 4)
 
     TextNormalColor := "CCCCCC"
     TextHoverColor  := "FFFFFF"
     BGroundNormalColor  := "1b1b1b"
     BGroundHoverColor  := "313131"
     isHovering := false
-;    if UseAcrylicGUI {
-;        MyGui.SetFont("c" TextNormalColor " s" Settings.GuiFontSizeMedium, Settings.GuiFontName)
-;    }
 
     ; Define layout constants
     GuiWidth            := 460
-    BtnWidth            := 100
-    MyGui.MarginX       := 50
+    BtnWidth            := 80
+    MyGui.MarginX       := 40
     MyGui.MarginY       := 30
 
     ; 1. Icon
     try {
-        MyGui.Add("Picture", "xm y+20 w64 h-1", App.Icon)
+        MyGui.Add("Picture", "xm y" offset " w64 h-1", App.Icon)
     } catch {
         MyGui.SetFont("s22 w500")
-        MyGui.Add("Text", "xm y+20 w64 h64", "[ i ]")
+        MyGui.Add("Text", "xm y" offset " w64 h64", "[ i ]")
     }
 
     ; 2. Title and Version
@@ -69,13 +67,12 @@ ShowAboutGUI() {
     MyGui.SetFont("s" Settings.GuiFontSizeMedium " w400")
     MyGui.Add("Text", "xm y+50 w" . (GuiWidth - (MyGui.MarginX *2)), App.Description)
 
-
     if App.Github {
         GitNormalColor := "5865F2"
         GitHoverColor  := "5896f2"
 
         MyGui.SetFont("s" Settings.GuiFontSizeBig " c" GitNormalColor " w800")
-        MyLink := MyGui.Add("Text", "-Tabstop xm y+60", "Check Github repository...")
+        MyLink := MyGui.Add("Text", "-Tabstop xm y+20", "Check Github repository...")
         MyLink.OnEvent("Click", OpenGithub)
         MyLink.BypassTheme := true
 
@@ -92,17 +89,15 @@ ShowAboutGUI() {
 
     ; Button OK
     MyGui.SetFont("s" Settings.GuiFontSizeMedium " w300", Settings.GuiFontName)
-;    btnX := (GuiWidth - BtnWidth) // 2 ; center
     btnX := GuiWidth - MyGui.MarginX - BtnWidth ; right
 
     if UseAcrylicGUI {
-;        HoverSettingsGui.SetFont("s" Settings.GuiFontSizeBig " C727272 w700", Settings.GuiFontName)
-        MyGui.SetFont("s" Settings.GuiFontSizeBig " CWhite w700", Settings.GuiFontName)
-        btnSave := MyGui.Add("Text", "x" btnX " y+25 w" BtnWidth " h30 Center 0x0200 Background" BGroundNormalColor " +Border", "OK")
+        MyGui.SetFont("s" Settings.GuiFontSizeMedium " CWhite w700", Settings.GuiFontName)
+        btnSave := MyGui.Add("Text", "x" btnX " y+10 w" BtnWidth " h25 Center 0x0200 Background" BGroundNormalColor " +Border", "OK")
         btnSave.BypassTheme := true
     } else {
         MyGui.SetFont("s" Settings.GuiFontSizeMedium " w300", Settings.GuiFontName)
-        btnSave := MyGui.AddButton("x" btnX " y+25 w" BtnWidth " h30 Default", "&OK")
+        btnSave := MyGui.AddButton("x" btnX " y+10 w" BtnWidth " h25 Default", "&OK")
     }
 
     btnSave.OnEvent("Click", CleanDestroy)
@@ -119,64 +114,76 @@ ShowAboutGUI() {
         WatchedGUIs.Push(MyGui)
     }
 
-
     MyGui.Show()
 
-    if (App.Github || UseAcrylicGUI) {
+    ; --- Enable GUI Dragging ---
+;    OnMessage(0x0201, WM_LBUTTONDOWN)
 
+        if IsSet(MessageManager) {
+            MessageManager.Register(0x0201, WM_LBUTTONDOWN)
+        } else {
+            OnMessage(0x0201, WM_LBUTTONDOWN)
+        }
+
+    WM_LBUTTONDOWN(wParam, lParam, msg, hwnd) {
+        if (hwnd == MyGui.Hwnd) {
+            PostMessage(0x00A1, 2, 0, MyGui.Hwnd)
+        }
+    }
+
+;    if (App.Github || UseAcrylicGUI) {
         if IsSet(MessageManager) {
             MessageManager.Register(0x0200, OnMouseMoveMyGui)
         } else {
             OnMessage(0x0200, OnMouseMoveMyGui)
         }
-    }
+;    }
 
     OpenMailTo(*) {
         Run("mailto:melo@meloprofessional.com")
         CleanDestroy()
     }
 
-
     OnMouseMoveMyGui(wParam, lParam, msg, hwnd) {
         try {
-            if (!btnSave || !MyLink || !Credits)
+/*             if (!Credits || !btnSave || !MyLink)
                 return
         } catch {
+            ToolTip(A_TickCount " catch ")
             return
         }
-        
-        if (hwnd == btnSave.Hwnd || hwnd == MyLink.Hwnd || hwnd == Credits.Hwnd) {
-
+ */        
+        if (hwnd == Credits.Hwnd || hwnd == btnSave.Hwnd || hwnd == MyLink.Hwnd) {
             ctrl := GuiCtrlFromHwnd(hwnd)
 
             if (!isHovering) {
-                    isHovering := true
-                    
-                    TRACKMOUSEEVENT := Buffer(A_PtrSize == 8 ? 24 : 16, 0)
-                    NumPut("UInt", TRACKMOUSEEVENT.Size, TRACKMOUSEEVENT, 0)
-                    NumPut("UInt", 2,                    TRACKMOUSEEVENT, 4)
-                    NumPut("Ptr",  ctrl.Hwnd,          TRACKMOUSEEVENT, A_PtrSize == 8 ? 8 : 8)
-                    DllCall("TrackMouseEvent", "Ptr", TRACKMOUSEEVENT)
-                    
-                    if IsSet(MessageManager) {
-                        MessageManager.Register(0x02A3, OnMouseLeaveMyGui)
-                    } else {
-                        OnMessage(0x02A3, OnMouseLeaveMyGui)
-                    }
+                isHovering := true
+                
+                TRACKMOUSEEVENT := Buffer(A_PtrSize == 8 ? 24 : 16, 0)
+                NumPut("UInt", TRACKMOUSEEVENT.Size, TRACKMOUSEEVENT, 0)
+                NumPut("UInt", 2,                    TRACKMOUSEEVENT, 4)
+                NumPut("Ptr",  ctrl.Hwnd,          TRACKMOUSEEVENT, A_PtrSize == 8 ? 8 : 8)
+                DllCall("TrackMouseEvent", "Ptr", TRACKMOUSEEVENT)
+                
+                if IsSet(MessageManager) {
+                    MessageManager.Register(0x02A3, OnMouseLeaveMyGui)
+                } else {
+                    OnMessage(0x02A3, OnMouseLeaveMyGui)
+                }
             }
-
 
             if (ctrl == MyLink) {
                 DllCall("SetCursor", "Ptr", DllCall("LoadCursor", "Ptr", 0, "Ptr", 32649, "Ptr"))
                 ctrl.SetFont("c" GitHoverColor)
             } else if (ctrl == Credits) {
                 DllCall("SetCursor", "Ptr", DllCall("LoadCursor", "Ptr", 0, "Ptr", 32649, "Ptr"))
-            } else {
+            } else if UseAcrylicGUI {
                 ctrl.SetFont("c" TextHoverColor)
                 ctrl.Opt("+Background" BGroundHoverColor)
             }
         }
-    }    
+    }
+    }
 
     OnMouseLeaveMyGui(wParam, lParam, msg, hwnd) {
         try {
@@ -186,23 +193,26 @@ ShowAboutGUI() {
                 if (ctrl == MyLink) {
                     ctrl.SetFont("c" GitNormalColor)
                 } else if (ctrl == Credits) {
-                } else {
+                } else if UseAcrylicGUI {
                     ctrl.SetFont("c" TextNormalColor)
                     ctrl.Opt("+Background" BGroundNormalColor)
-
                 }
-        isHovering := false
+                isHovering := false
             }
         }
     }
 
     CleanDestroy(*) {
+        ; Unregister the drag message handler
+
         if IsSet(MessageManager) {
             MessageManager.Unregister(0x0200, OnMouseMoveMyGui)
             MessageManager.Unregister(0x02A3, OnMouseLeaveMyGui)
+            MessageManager.Unregister(0x0201, WM_LBUTTONDOWN)
         } else {
             OnMessage(0x0200, OnMouseMoveMyGui, 0)
             OnMessage(0x02A3, OnMouseLeaveMyGui, 0)
+            OnMessage(0x0201, WM_LBUTTONDOWN, 0)
         }
         
         if IsFunctionDefined("RemoveGuiFromArray")
