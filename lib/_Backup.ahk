@@ -203,43 +203,38 @@ Backup() {
     ; 3. Handle compilation movement, assets, & zipping
     ; -------------------------------------------------------------------
     if (hasCompExe) {
-        ; Check if 'assets' folder exists and is NOT empty
         assetsSrc := A_ScriptDir "\assets"
-        if DirExist(assetsSrc) {
-            hasAssetsContent := false
+        hasAssets := DirExist(assetsSrc)
+        
+        hasAssetsContent := false
+        if (hasAssets) {
             Loop Files, assetsSrc "\*", "FD" {
                 hasAssetsContent := true
                 break
             }
+        }
 
-            if !(hasAssetsContent) {
-				compDir := targetDir "\compilation"
-				if !DirExist(compDir)
-					DirCreate(compDir)
+        if (!hasAssets || !hasAssetsContent) {
+            ; Case 1: No assets or empty assets folder
+            compDir := targetDir "\compilation"
+            if !DirExist(compDir)
+                DirCreate(compDir)
 
-				FileMove(A_ScriptDir "\comp.exe", compDir "\" scriptname ".exe", 1)
+            FileMove(A_ScriptDir "\comp.exe", compDir "\" scriptname ".exe", 1)
 
-			} else {
-				; Target compilation directory: targetDir\compilation\%scriptname%\
-				scriptCompDir := targetDir "\compilation\" scriptname
-				if !DirExist(scriptCompDir)
-					DirCreate(scriptCompDir)
+        } else {
+            ; Case 2: Assets folder exists and has content
+            scriptCompDir := targetDir "\compilation\" scriptname
+            if !DirExist(scriptCompDir)
+                DirCreate(scriptCompDir)
 
+            ; Move comp.exe and copy assets
+            FileMove(A_ScriptDir "\comp.exe", scriptCompDir "\" scriptname ".exe", 1)
+            DirCopy(assetsSrc, scriptCompDir "\assets", 1)
 
-				; Move comp.exe and rename to %scriptname%.exe
-				FileMove(A_ScriptDir "\comp.exe", scriptCompDir "\" scriptname ".exe", 1)
-
-                DirCopy(assetsSrc, scriptCompDir "\assets", 1)
-
-				; Zip compilation\%scriptname%\ folder in place
-				zipPath := targetDir "\compilation\" scriptname ".zip"
-				RunWait('powershell -NoProfile -NonInteractive -Command "Compress-Archive -Path \"' scriptCompDir '\*\" -DestinationPath \"' zipPath '\" -Force"', , "Hide")
-
-				; Remove the uncompressed script folder after zipping
-				; if FileExist(zipPath) {
-				; 	DirDelete(scriptCompDir, 1)
-				; }
-            }
+            ; Zip compilation\%scriptname%\ folder in place
+            zipPath := targetDir "\compilation\" scriptname ".zip"
+            RunWait('powershell -NoProfile -NonInteractive -Command "Compress-Archive -Path \"' scriptCompDir '\*\" -DestinationPath \"' zipPath '\" -Force"', , "Hide")
         }
 
         ; Append COMPILED tag to final backup folder name

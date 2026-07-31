@@ -200,8 +200,12 @@ class ModernSlider {
             DllCall("gdi32\DeleteObject", "Ptr", hOld)
         }
 
-        ; Force the parent window to paint this area synchronously to avoid any flickering
-        DllCall("user32\InvalidateRect", "Ptr", this.guiObj.Hwnd, "Ptr", this.rectBuffer, "Int", 1)
+        ; Map physical bounding box of the control to parent window for repainting
+        rect := Buffer(16, 0)
+        DllCall("user32\GetWindowRect", "Ptr", this.hwnd, "Ptr", rect)
+        DllCall("user32\MapWindowPoints", "Ptr", 0, "Ptr", this.guiObj.Hwnd, "Ptr", rect, "UInt", 2)
+
+        DllCall("user32\InvalidateRect", "Ptr", this.guiObj.Hwnd, "Ptr", rect, "Int", 1)
         DllCall("user32\UpdateWindow", "Ptr", this.guiObj.Hwnd)
     }
 
@@ -360,10 +364,10 @@ class ModernSlider {
 
     GetLocalMousePos(&mx, &my) {
         pt := Buffer(8)
-        DllCall("GetCursorPos", "Ptr", pt)
-        DllCall("ScreenToClient", "Ptr", this.guiObj.Hwnd, "Ptr", pt)
-        mx := NumGet(pt, 0, "Int") - this.ctrlX
-        my := NumGet(pt, 4, "Int") - this.ctrlY
+        DllCall("user32\GetCursorPos", "Ptr", pt)
+        DllCall("user32\ScreenToClient", "Ptr", this.hwnd, "Ptr", pt)
+        mx := NumGet(pt, 0, "Int")
+        my := NumGet(pt, 4, "Int")
     }
 
     IsMouseOverSlider(mx, my, padding := 10) {

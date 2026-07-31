@@ -80,6 +80,9 @@ RefreshSessionsForSelectedDevice() {
         return
     }
     
+    ; Calculate DPI scaling factor for custom controls
+    scaleFactor := A_ScreenDPI / 96
+    
     ; Reset scroll position to top before rebuilding
     CurrentScrollPos := 0
     if (ChildGui != "")
@@ -95,15 +98,15 @@ RefreshSessionsForSelectedDevice() {
 
     DllCall("user32\RedrawWindow", "Ptr", MainGui.Hwnd, "Ptr", 0, "Ptr", 0, "UInt", 5)
 
-    ; Minimal settings layout added directly to the scrolling child canvas
+    ; Settings menu icon aligned top-right
     ChildGui.SetFont("s14", "Segoe UI")
-    btnSettings := ChildGui.Add("Text", "cWhite x341 y19 w28 h28", "⫶☰")
+    btnSettings := ChildGui.Add("Text", "cWhite x335 y19 w30 h28 Right", "⫶☰")
     btnSettings.OnEvent("Click", SelectPlaybackDevicesGUI)
     DynamicControls.Push(btnSettings)
 
     ChildGui.SetFont("s9", "Segoe UI")
     deviceNames := PopulatePlaybackDevices()
-    yPos := 25 ; starting position
+    yPos := 25
     wWidth := 380
 
     ActiveDevices := []
@@ -119,41 +122,43 @@ RefreshSessionsForSelectedDevice() {
         }
     }
     
-    ; Loop through the prepared visible devices
+    ; Loop through visible devices
     for index, device in ActiveDevices {
-        lblDevice := ChildGui.Add("Text", "x15 y" yPos " w320 h20 +0x4000", StrUpper(device.Name))
+        lblDevice := ChildGui.Add("Text", "x15 y" yPos " w300 h20 +0x4000", StrUpper(device.Name))
         lblDevice.SetFont("q5 s8 Bold c0x0078D7")
         lblDevice.BypassTheme := true
         DynamicControls.Push(lblDevice)
         
-        yPos += 40 ; after playback device
+        yPos += 40
         
         for session in device.Sessions {
             SplitPath(session.ProgName, , , , &cleanProgName)
-            lblApp := ChildGui.Add("Text", "x20 y" yPos " w100 h20 cWhite +0x4000 +0x0200", cleanProgName)
+            
+            ; App Label (x15, w95)
+            lblApp := ChildGui.Add("Text", "x15 y" yPos " w95 h20 cWhite +0x4000 +0x0200", cleanProgName)
             sliderY := yPos - 1
 
-            lblVol := ChildGui.Add("Text", "x338 y" yPos " w25 h20 cWhite Right +0x0200", session.Volume)
+            ; Volume Label (x318, w45 Right-Aligned)
+            lblVol := ChildGui.Add("Text", "x318 y" yPos " w45 h20 cWhite Right +0x0200", session.Volume)
+            ;lblVol := ChildGui.Add("Text", "x300 y" yPos " w45 h20 cWhite Right +0x0200", session.Volume)
             lblVol.SetFont("cWhite w600 s9", "Segoe UI")
             
-            ; Instantiate the ModernSlider
-            sldVol := ModernSlider(ChildGui, "x125 y" sliderY " w215 h20", session.Volume, 0, 100, OnSliderChange.Bind(session.SimpleVol, lblVol))
+            ; Dynamically scale slider track width for High DPI / 4K displays
+            sliderW := Floor(210 * scaleFactor)
+            sldVol := ModernSlider(ChildGui, "x112 y" sliderY " w" sliderW " h20", session.Volume, 0, 100, OnSliderChange.Bind(session.SimpleVol, lblVol))
             
-            ; Save tracking associations to update without structural refreshes later
             SliderControlMap[StrLower(session.ProgName)] := {Slider: sldVol, Label: lblVol, Session: session.SimpleVol}
             
             DynamicControls.Push(lblApp)
             DynamicControls.Push(lblVol)
-            
-            ; Push the underlying native AHK controls inside the class so the window destructor works
             DynamicControls.Push(sldVol.sliderCtrl)
             DynamicControls.Push(sldVol)
             
-            yPos += 45 ; inter programs
+            yPos += 45
         }
         
         if (index < ActiveDevices.Length) {
-            yPos += 15 ; after programs
+            yPos += 15
         }
     }
     
@@ -165,16 +170,15 @@ RefreshSessionsForSelectedDevice() {
     
     VirtualGuiHeight := yPos + 5
     
-    ; Determine window frame size constraints vs scrolling availability
     if (VirtualGuiHeight > MaxGuiHeight) {
         newHeight := MaxGuiHeight
         
         si := Buffer(28, 0)
-        NumPut("UInt", 28, si, 0)    ; cbSize
-        NumPut("UInt", 0x17, si, 4)  ; fMask (SIF_RANGE | SIF_PAGE | SIF_POS)
-        NumPut("Int", 0, si, 8)      ; nMin
-        NumPut("Int", VirtualGuiHeight, si, 12) ; nMax
-        NumPut("UInt", newHeight, si, 16)       ; nPage
+        NumPut("UInt", 28, si, 0)
+        NumPut("UInt", 0x17, si, 4)
+        NumPut("Int", 0, si, 8)
+        NumPut("Int", VirtualGuiHeight, si, 12)
+        NumPut("UInt", newHeight, si, 16)
         
         DllCall("user32\SetScrollInfo", "Ptr", MainGui.Hwnd, "Int", 1, "Ptr", si.Ptr, "Int", 1)
         DllCall("user32\ShowScrollBar", "Ptr", MainGui.Hwnd, "Int", 1, "Int", 0)
@@ -185,7 +189,6 @@ RefreshSessionsForSelectedDevice() {
     
     CurrentGuiHeight := newHeight
     
-    ; Explicitly show child layout frame without taking focus
     ChildGui.Show("x0 y0 w" wWidth " h" VirtualGuiHeight " NA")
     
     if (IsGuiVisible) {
@@ -211,18 +214,19 @@ RefreshSessionsForSelectedDevice() {
         if (spawnX + wWidth > wr)
             spawnX := wr - wWidth
 
-        ; Dynamic resizing/repositioning processed via Win32 to prevent window activation
+        scaledW := Floor(wWidth * scaleFactor)
+        scaledH := Floor(newHeight * scaleFactor)
+
         DllCall("User32\SetWindowPos", 
             "Ptr", MainGui.Hwnd, 
             "Ptr", 0, 
             "Int", spawnX, 
             "Int", spawnY, 
-            "Int", wWidth, "Int", newHeight, 
-            "UInt", 0x0010 | 0x0004 ; SWP_NOACTIVATE | SWP_NOZORDER
+            "Int", scaledW, "Int", scaledH, 
+            "UInt", 0x0010 | 0x0004
         )
     } else {
-        ; Completely hidden state fallback processed safely without focus signals
-        DllCall("User32\ShowWindow", "Ptr", MainGui.Hwnd, "Int", 0) ; SW_HIDE
+        DllCall("User32\ShowWindow", "Ptr", MainGui.Hwnd, "Int", 0)
     }
 }
 
@@ -327,22 +331,28 @@ ShowMixerGuiNow() {
         RefreshSessionsForSelectedDevice()
     }
 
+    scaleFactor := A_ScreenDPI / 96
+    
+    ; Scale width and height to physical pixels FIRST
+    w := Floor(380 * scaleFactor)
+    h := Floor(CurrentGuiHeight * scaleFactor)
+    
     monitorNum := MonitorGetFromPoint(TrayMouseX, TrayMouseY)
     MonitorGetWorkArea(monitorNum, &wl, &wt, &wr, &wb)
     MonitorGet(monitorNum, &ml, &mt, &mr, &mb)
     
-    w := 380 
-    h := CurrentGuiHeight
     spawnX := TrayMouseX - (w // 2)
     
+    ; Determine vertical direction relative to taskbar
     if (wt > mt) {
-        spawnY := TrayMouseY + 25
+        spawnY := TrayMouseY + Floor(25 * scaleFactor)
     } else if (wb < mb) {
-        spawnY := TrayMouseY - h - 15
+        spawnY := TrayMouseY - h - Floor(15 * scaleFactor)
     } else {
-        spawnY := (TrayMouseY > (mt + mb) // 2) ? TrayMouseY - h - 15 : TrayMouseY + 25
+        spawnY := (TrayMouseY > (mt + mb) // 2) ? TrayMouseY - h - Floor(15 * scaleFactor) : TrayMouseY + Floor(25 * scaleFactor)
     }
     
+    ; Clamp inside working area
     if (spawnY < wt)
         spawnY := wt
     if (spawnY + h > wb)
@@ -361,6 +371,7 @@ ShowMixerGuiNow() {
     SetTimer(HideGuiWhenMouseLeaves, hovertimeout)
 }
 
+/* 
 HideGuiWhenMouseLeaves() {
     global IsGuiVisible, TrayMouseX, TrayMouseY, TrayLeaveCount, MainGui, ChildGui, hovertimeout, mouseOverIconEstimate
 
@@ -385,6 +396,42 @@ HideGuiWhenMouseLeaves() {
         TrayLeaveCount := 0 
     }
 }
+ */
+
+HideGuiWhenMouseLeaves() {
+    global IsGuiVisible, TrayMouseX, TrayMouseY, TrayLeaveCount, MainGui, ChildGui, hovertimeout, mouseOverIconEstimate
+
+    if (MainGui == "" || !WinExist(MainGui.Hwnd)) {
+        mouseOverIconEstimate := false
+        return
+    }
+
+    CoordMode("Mouse", "Screen")
+    MouseGetPos(&mx, &my)
+    
+    ; Get actual physical window bounding box via Win32 API
+    rect := Buffer(16, 0)
+    DllCall("User32\GetWindowRect", "Ptr", MainGui.Hwnd, "Ptr", rect)
+    gx := NumGet(rect, 0, "Int")   ; Physical Left
+    gy := NumGet(rect, 4, "Int")   ; Physical Top
+    gr := NumGet(rect, 8, "Int")   ; Physical Right
+    gb := NumGet(rect, 12, "Int")  ; Physical Bottom
+    
+    ; Check if mouse is within physical window rectangle
+    mouseInsideGui := (mx >= gx && mx <= gr && my >= gy && my <= gb)
+    
+    padding := 24 
+    mouseOverIconEstimate := (mx >= TrayMouseX - padding && mx <= TrayMouseX + padding && my >= TrayMouseY - padding && my <= TrayMouseY + padding)
+
+    if (!mouseInsideGui && !mouseOverIconEstimate) {
+        TrayLeaveCount++ 
+        if (TrayLeaveCount >= 2)
+            HideAudioMixerGui()
+    } else {
+        TrayLeaveCount := 0 
+    }
+}
+
 
 HideAudioMixerGui() {
     global IsGuiVisible, TrayMouseX, TrayMouseY, MainGui
