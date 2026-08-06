@@ -1,8 +1,8 @@
 /************************************************************************
  * @description Reload passing a dynamic call with a parameter
  * @author Melo (melo@meloprofessional.com)
- * @date 2026/07/22
- * @version 1.1.0
+ * @date 2026/08/06
+ * @version 1.2.0
  ***********************************************************************/
 
 
@@ -24,7 +24,7 @@ ReloadWithArgs(callerName := "", paramValue := "") {
 }
 /* 
 ; CHECK RELOAD ARGUMENTS
-if (A_Args.Length > 0) {
+if (A_Args.Length > 0)  && !RegExMatch(A_Args[1], "i)^--signal-update-success=") {
     targetFuncName := A_Args[1]
     if !A_IsCompiled && Debug
         ToolTip("reload with args " A_Args[1])

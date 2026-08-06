@@ -1,8 +1,8 @@
 /************************************************************************
  * @description Modern Slider for AutoHotKey v2
  * @author Melo
- * @date 2026/07/16
- * @version 3.0.3 (MessageManager)
+ * @date 2026/08/01
+ * @version 3.0.4 (fix stain and 4k monitor)
  ***********************************************************************/
 
 /* 
