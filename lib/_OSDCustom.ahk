@@ -1,6 +1,6 @@
 /************************************************************************
  * @description OSDCustom (Dynamic Styling & Multi-Column Grid Engine)
- * @version 6.15.0 (Default Text for show )
+ * @version 6.18.0 (fix min width for progressbar)
  ***********************************************************************/
 
 #Requires AutoHotkey v2.0
@@ -98,7 +98,20 @@ class OSDCustom {
     }
 
     ; --- Cell definition methods ---
-
+	/**
+	* @description {`SetCellText()`}
+	* Set a cell as a text with positioning and styling options.
+	* @param {(Integer)} [column]
+	* @param {(Integer)} [row]
+	* @param {(String)} [text]
+	* @param {(String)} [aligment]
+	* @param {(Object)} [style]
+	* @param {(Integer)} [columnSpan]
+	* @param {(Integer)} [rowSpan]
+	* @returns {(Object)}
+	* @example <caption>Set cell text at column 2 row 1 with a 'message', horizontal aligment Center, Styling as (fontname Consolas, font size 12, font color CCCCCC, font weight 100) and spanning by 3 rows.</caption>
+	* MyOSD.SetCellText(2, 1, "message", "Center", "{FontName: "Consolas", FontSize: 12, FontColor: "CCCCCC", FontWeight: 100 }", 1, 3)
+	*/
     SetCellText(col, row, text, alignment := "Left", styleObj := "", colSpan := 1, rowSpan := 1) {
         textObj := { Type: "Text", Col: col, Row: row, Text: text, Align: alignment, Style: styleObj, ColSpan: colSpan, RowSpan: rowSpan }
         this.Cells.Push(textObj)
@@ -186,6 +199,8 @@ class OSDCustom {
                             textColor := info.Style.ColorLight
                         else if (!isLight && info.Style.HasProp("ColorDark"))
                             textColor := info.Style.ColorDark
+                        else if (info.Style.HasProp("FontColor"))
+                            textColor := info.Style.FontColor
                     }
                     try ctrl.SetFont("c" textColor)
                 }
@@ -231,11 +246,13 @@ class OSDCustom {
             this.ProgressValue := Progress
 
         if !IsSet(Text) && (this.Cells.Length == 0) {
-            this.SetCellText(2, 2, A_LineFile, "Center")
+            this.SetCellText(2, 1, A_LineFile, "Center")
         }
 
         if IsSet(Text) {
-            this.SetCellText(2, 2, Text, "Center")
+			if this.Cells.Length == 1
+				this.ClearCells()
+            this.SetCellText(2, 1, Text, "Center")
         }
 
         if (this.MyGui) {
@@ -282,16 +299,20 @@ class OSDCustom {
             reqColW[A_Index] := 0
 
         for cell in this.Cells {
-            if (cell.Type == "Progress" || cell.ColSpan > 1)
+            ;if (cell.Type == "Progress" || cell.ColSpan > 1)
+			if (cell.ColSpan > 1)
                 continue
 
             w := 0
-            if (cell.Type == "Image") {
+			if (cell.Type == "Progress") {
+		        w := 100 ; Default pixel width for single-column progress bars
+            } else if (cell.Type == "Image") {
                 dims := this.GetImageDims(cell.Path, cell.TargetH)
-                w := dims.W + 16 
+                w := dims.W + 8
             } else {
                 fName := (IsObject(cell.Style) && cell.Style.HasProp("FontName")) ? cell.Style.FontName : this.FontName
                 fSize := (IsObject(cell.Style) && cell.Style.HasProp("FontSize")) ? cell.Style.FontSize : this.FontSize
+                fColor := (IsObject(cell.Style) && cell.Style.HasProp("FontColor")) ? cell.Style.FontColor : this.GetCurrentThemeColor("TextDefault")
                 FWeight := (IsObject(cell.Style) && cell.Style.HasProp("FontWeight")) ? cell.Style.FontWeight : this.FontWeight
                 bounds := this.CalculateTextSize(cell.Text, fName, fSize, FWeight, this.MaxWidth)
                 w := bounds.W + 8 
@@ -319,6 +340,7 @@ class OSDCustom {
                 } else {
                     fName := (IsObject(cell.Style) && cell.Style.HasProp("FontName")) ? cell.Style.FontName : this.FontName
                     fSize := (IsObject(cell.Style) && cell.Style.HasProp("FontSize")) ? cell.Style.FontSize : this.FontSize
+					fColor := (IsObject(cell.Style) && cell.Style.HasProp("FontColor")) ? cell.Style.FontColor : this.GetCurrentThemeColor("TextDefault")
                     FWeight := (IsObject(cell.Style) && cell.Style.HasProp("FontWeight")) ? cell.Style.FontWeight : this.FontWeight
                     w := this.CalculateTextSize(cell.Text, fName, fSize, FWeight, this.MaxWidth).W + 8
                 }
@@ -378,6 +400,7 @@ class OSDCustom {
             } else { 
                 fName := (IsObject(cell.Style) && cell.Style.HasProp("FontName")) ? cell.Style.FontName : this.FontName
                 fSize := (IsObject(cell.Style) && cell.Style.HasProp("FontSize")) ? cell.Style.FontSize : this.FontSize
+				fColor := (IsObject(cell.Style) && cell.Style.HasProp("FontColor")) ? cell.Style.FontColor : this.GetCurrentThemeColor("TextDefault")
                 FWeight := (IsObject(cell.Style) && cell.Style.HasProp("FontWeight")) ? cell.Style.FontWeight : this.FontWeight
                 bounds := this.CalculateTextSize(cell.Text, fName, fSize, FWeight, cellW)
                 cell.ComputedW := bounds.W
@@ -491,8 +514,9 @@ class OSDCustom {
             } else {  
                 fName := (IsObject(cell.Style) && cell.Style.HasProp("FontName")) ? cell.Style.FontName : this.FontName
                 fSize := (IsObject(cell.Style) && cell.Style.HasProp("FontSize")) ? cell.Style.FontSize : this.FontSize
+				fColor := (IsObject(cell.Style) && cell.Style.HasProp("FontColor")) ? cell.Style.FontColor : this.GetCurrentThemeColor("TextDefault")
                 FWeight := (IsObject(cell.Style) && cell.Style.HasProp("FontWeight")) ? cell.Style.FontWeight : this.FontWeight
-                this.MyGui.SetFont("s" fSize " w" FWeight, fName)
+                this.MyGui.SetFont("s" fSize " c" fColor " w" FWeight, fName)
                 
                 ; --- CUSTOM TEXT VERTICAL CENTERING ---
                 ; Calculate centered vertical offset relative to the row's total height
