@@ -1,6 +1,6 @@
 /************************************************************************
  * @description OSDCustom (Dynamic Styling & Multi-Column Grid Engine)
- * @version 6.19.0 (DPI calcs)
+ * @version 6.19.1 (DPI calcs)
  ***********************************************************************/
 
 #Requires AutoHotkey v2.0
@@ -1001,17 +1001,110 @@ class OSDCustom {
     }
 }
 
-/*
-* EXAMPLES
+
+; ------------------------------------------------------------------------------
+; HOW TO USE
+; ------------------------------------------------------------------------------
+
+; _HOWTOUSEOSDCUSTOM()
+
+_HOWTOUSEOSDCUSTOM() {
+	; First create an object (ie MYOSD) initiating the Class
+		MYOSD := OSDCustom()
+
+	; Now lets create a text cell with SetCellText(col, row, text, alignment := "Left", styleObj := "", colSpan := 1, rowSpan := 1)
+		MYOSD.SetCellText(1, 1, "My text to show")	; text cell at column 1, row 1
+
+	; Lets also create a text cell that can be updated 'on-the-fly' later.
+	; First assign a cell to an object (ie myText1)
+	; Later we will be updating it's content
+		myText1 := MYOSD.SetCellText(1, 2, "This text will be updated later")	; text cell at column 1, row 2
+
+	; Lets create a image cell with SetCellImage(col, row, imagePath, alignment := "Center", targetHeight := 54, colSpan := 1, rowSpan := 1)
+		MYOSD.SetCellImage(2, 2, A_ScriptDir "\shield.png", , 64)	; at column 2, row 2, image from file imagePath and 256 px size
+
+	; Lets create a ProgressBar with SetCellProgress(col := 1, row := this.ProgressBarRow, value := 0, alignment := "Center", range := "", colSpan := 999, rowSpan := 1)
+		; range can be: "-50-100", [-50, 100], {Min:-50, Max:100}, or just 500 (meaning 0 to 500)
+		MYOSD.SetCellProgress(1, 3, 100, , [-500, 500])	; Progress bar at column 1 and row 3, with value 100 and range from -500 to +500
+
+	; Now lets show the OSD with Show(Text?, Position := "", TimeOut := "", Progress := "")
+		MYOSD.Show(, Position := "x0.5 y0.9")	; show current cells at X 50% and Y 90% of the screen
+
+	; A little sleep to later update the cell myText1
+	Sleep(1000)
+
+	; Now lets update that text cell 'on-the-fly',
+	; with UpdateTextObject(cellObj, newText, TimeOut := "")
+		MYOSD.UpdateTextObject(myText1, "New Text")
+
+	; The same update technique applies to Images and ProgressBar
+		; MYOSD.UpdateProgressObject(progressObj, newValue, TimeOut := "")
+		; MYOSD.UpdateImageObject(imageObj, newImagePath, TimeOut := "")
+
+	; If you need anytime to cleanup cells
+		; MYOSD.ClearCells()
+	; If you need instant Destroy, not waiting default timeout, you can
+		; MYOSD.Destroy()
+}
 
 
 
-ThemeIcon := A_ScriptDir "\windowstheme7.ico"
+/* 
+; ------------------------------------------------------------------------------
+; EXAMPLES
+; ------------------------------------------------------------------------------
+
+
+; ------------------------------------------------------------------------------
+; SIMPLE
+; ------------------------------------------------------------------------------
+
+Simple := OSDCustom()	; initiate OSD instance
+Simple.Show("Simple OSD!")
+
+
+; ------------------------------------------------------------------------------
+; TOOLTIP AT MOUSE POSITION
+; ------------------------------------------------------------------------------
+
+;	TOOLTIP USING OSD CUSTOM
+tt := OSDCustom()	; initiate OSD instance
+
+; Tooltip Preset - lets customize it!
+tt.FontSize := 9
+tt.Opacity := 255
+tt.SlideDistance := 1
+tt.MarginX := 5
+tt.MarginY := 5
+tt.TimeOut := 3500
+
+; Show a tooltip at mouse position
+tt.Show("OSD Tooltip!", MousePosition())
+
+MousePosition() {
+    CoordMode("Mouse")
+    MouseGetPos(&mouseX, &mouseY)
+    xPct := Round((mouseX / A_ScreenWidth) + 0.02, 2) ; (little offset upwards)
+    yPct := Round((mouseY / A_ScreenHeight) - 0.02, 2) ; (little offset upwards)
+	xPct := max(0, min(1, xPct))
+	yPct := max(0, min(1, yPct))
+    return "x" . xPct . " y" . yPct
+}
+
+
+; ------------------------------------------------------------------------------
+; 3 OSDs at same time with different presets and contents
+; ------------------------------------------------------------------------------
+
+ThemeIcon := A_ScriptDir "\key.ico"
 ShieldIcon := A_ScriptDir "\shield.png"
 
-MyOSD1 := OSDCustom("My First OSD in Light Mode")
+MyOSD1 := OSDCustom()
 MyOSD1.Theme := "Light"
-MyOSD2 := OSDCustom("Another OSD with default settings")
+
+MyOSD2 := OSDCustom()
+MyOSD2.Opacity := 200
+
 MyOSD3 := OSDCustom()
 
 
@@ -1023,7 +1116,7 @@ MyOSD3 := OSDCustom()
     MyOSD1.SetCellImage(1, 1, ThemeIcon, "Left", 80,1,3)
     MyOSD1.SetCellText(2, 1, "`nThis is Title 1", "Left",{ FontSize: 13, FontWeight: 1000 })
     MyOSD1.SetCellText(2, 2, "This is a description`nArtist:`tBethoven`nTrack:`tMoonlight Sonata", "Left",,,)
-    MyOSD1.SetCellText(2, 3, " ", "Left",{ FontSize: 1},,)
+    MyOSD1.SetCellText(2, 3, " ", "Left",{ FontSize: 1})
 
 
 
@@ -1031,20 +1124,21 @@ MyOSD3 := OSDCustom()
     MyOSD2.SetCellText(2, 1, "  ", "Left",{ FontSize: 1})
     MyOSD2.SetCellText(2, 2, "This is Title 2", "Left",{ FontSize: 13, FontWeight: 700 })
     MyOSD2.SetCellText(2, 3, "This is a description`nArtist:`tBethoven`nTrack:`tMoonlight Sonata", "Left", { FontSize: 11},,)
-    MyOSD2.SetCellText(2, 4, " ", "Left",{ FontSize: 1},,)
+    MyOSD2.SetCellText(2, 4, " ", "Left",{ FontSize: 1})
  
 
     MyOSD3.SetCellImage(1, 1, ThemeIcon, "Left", 80,1,4)
-    MyOSD3.SetCellText(2, 2, "This is Title 3", "Left",{ FontSize: 16, FontWeight: 500 })
+    MyOSD3.SetCellText(2, 2, "This is Title 3", "Left", {FontSize: 16, FontWeight: 500 })
     MyOSD3.SetCellText(2, 3, "This is a description`nArtist:`tBethoven`nTrack:`tMoonlight Sonata", "Left", { FontSize: 11},,)
-    MyOSD3.SetCellText(2, 4, " ", "Left",{ FontSize: 1},,)
+    MyOSD3.SetCellText(2, 4, " ", "Left", {FontSize: 1})
 
 
 
-    MyOSD1.Show("x0.75 y0.35",5000)
-    MyOSD2.Show("x0.75 y0.5",5000)
-    MyOSD3.Show("x0.75 y0.65",5000)
+    MyOSD1.Show(,"x0.75 y0.35", 5000)
+    MyOSD2.Show(,"x0.75 y0.5", 5000)
+    MyOSD3.Show(,"x0.75 y0.65", 5000)
 }
+
 
 ; ------------------------------------------------------------------------------
 ; HOTKEY: Win + F5 -> Example 1: Basic Modern Handshake Notification
@@ -1061,7 +1155,7 @@ MyOSD3 := OSDCustom()
     TimeElapsed := MyOSD2.SetCellText(1, 4, "Time elapsed: 0s",, { FontSize: 7 })
     MyProgress2 := MyOSD2.SetCellProgress(1, 6, 2500,, secondstocount)
     
-    MyOSD2.Show(, 0)
+    MyOSD2.Show(, , 0)
     
     While (A_TickCount < starttime + secondstocount) {
         CurrentProgress := (A_TickCount - starttime)
@@ -1079,6 +1173,7 @@ MyOSD3 := OSDCustom()
     MyOSD2.UpdateProgressObject(MyProgress1, secondstocount)
     MyOSD2.UpdateProgressObject(MyProgress2, secondstocount, 2000)
 }
+
 
 ; ------------------------------------------------------------------------------
 ; HOTKEY: Win + F6 -> Example 2: Fixed 3-Column Asset Download (No wrapping!)
@@ -1105,7 +1200,7 @@ MyOSD3 := OSDCustom()
     ; Progress bar at row 4, spanning all 3 columns
     MyOSD2.SetCellProgress(1, 4, 0, 3)
 
-    MyOSD2.Show("x0.50 y0.80", 0)
+    MyOSD2.Show(, "x0.50 y0.80", 0)
 
     Loop 10 {
         CurrentProgress := A_Index * 10
@@ -1121,6 +1216,7 @@ MyOSD3 := OSDCustom()
     MyOSD2.UpdateText(2, 3, "", 2000)
     MyOSD2.UpdateProgress(100, 3000)
 }
+
 
 ; ------------------------------------------------------------------------------
 ; HOTKEY: Win + F7 -> Example 3: Wide Split Layout Layout
@@ -1140,8 +1236,9 @@ MyOSD3 := OSDCustom()
     MyOSD1.SetCellProgress(1, 4, 79, 2)
 
     MyOSD1.SetCellText(1, 5, "Press [Esc] to cancel background sync operations", "Center", { FontSize: 10 }, 2)
-    MyOSD1.Show("x0.50 y0.30", 1500)
+    MyOSD1.Show(, "x0.50 y0.30", 1500)
 }
+
 
 ; ------------------------------------------------------------------------------
 ; HOTKEY: Win + F8 -> Example 4: Graphical HUD
@@ -1157,13 +1254,14 @@ MyOSD3 := OSDCustom()
     MyOSD1.SetCellText(2, 1, "WINDOWS SECURITY COMPLIANCE", "Center", { FontSize: 11, FontWeight: 1000 })
     MyOSD1.SetCellText(3, 1, "Verified SEC-ID", "Right", { FontSize: 7 })
     MyOSD1.SetCellText(1, 2, "Environment state matches all DWM kernel policies.", "Left", { FontSize: 10 }, 4)
-    MyOSD1.Show("x0.85 y1", 3000)
+    MyOSD1.Show(, "x0.85 y1", 3000)
 }
+
 
 ; ------------------------------------------------------------------------------
 ; HOTKEY: Volume Up / Down -> Example 5: Windows OSD for Audio Volume
 ; ------------------------------------------------------------------------------
-VolumeOSD := OSDCustom("Volume OSD")
+VolumeOSD := OSDCustom()
 VolumeOSD.MinWidth := 195
 VolumeOSD.Speed := 2.3
 VolumeOSD.MarginX := 16
@@ -1181,9 +1279,8 @@ VolumeOSD.TimeOut := 1775
 
 ; Start the controls
 VolIconObj :=       VolumeOSD.SetCellText(1, 1, " ", "Left", { FontSize: 14, FontWeight: 500 })
-DummyCell:=         VolumeOSD.SetCellText(2, 1, "                                                                                ", "Center", { FontSize: 1})
-VolTextObj :=       VolumeOSD.SetCellText(3, 1, " ", "Right", { FontSize: 10, FontWeight: 500 })
 VolProgressObj :=   VolumeOSD.SetCellProgress(2, 1, 100,,,1)
+VolTextObj :=       VolumeOSD.SetCellText(3, 1, " ", "Right", { FontSize: 10, FontWeight: 500 })
 
 e66 := "🔊"
 e33 := "🔉"
@@ -1218,25 +1315,30 @@ UpdateVolumeOSD() {
     }
 }
 
+
 ; ------------------------------------------------------------------------------
 ; HOTKEY: #F3 -> Example 6: Update image
 ; ------------------------------------------------------------------------------
 ; Initialize OSD Layout structure once at script startup
-Global StatusOSD := OSDCustom("Status Panel")
+Global StatusOSD := OSDCustom()
 StatusOSD.Theme := "Dark"
 
 ; Pre-build a layout grid:
 ; Column 1, Row 1, Spanning 1 Column and 2 Rows
 Global MyImageObj := StatusOSD.SetCellImage(1, 1, ThemeIcon, "Center", 64, 1, 2)
 
-; Column 2, Rows 1 and 2 for labels
-Global TitleObj   := StatusOSD.SetCellText(2, 1, "SYSTEM STATUS", "Left", { FontSize: 12, FontWeight: 700 })
-Global StateObj   := StatusOSD.SetCellText(2, 2, "SECURITY: LOCKED", "Left", { FontSize: 10 })
+; Column 2, Rows 1 and 2 for placeholders (empty space)
+StatusOSD.SetCellText(2, 1, " ", "Left", { FontSize: 12, FontWeight: 700 })
+StatusOSD.SetCellText(2, 2, " ", "Left", { FontSize: 10 })
+
+; Column 3, Rows 1 and 2 for labels
+Global TitleObj   := StatusOSD.SetCellText(3, 1, "SYSTEM STATUS", "Left", { FontSize: 12, FontWeight: 700 })
+Global StateObj   := StatusOSD.SetCellText(3, 2, "SECURITY: LOCKED", "Left", { FontSize: 10 })
 
 #F3:: {
     ; First-time open
     if (!StatusOSD.IsVisible) {
-        StatusOSD.Show("x0.50 y0.85", 2000)
+        StatusOSD.Show(,"x0.50 y0.85", 2000)
         return
     }
     
@@ -1250,4 +1352,4 @@ Global StateObj   := StatusOSD.SetCellText(2, 2, "SECURITY: LOCKED", "Left", { F
     }
 }
 
-*/
+ */
