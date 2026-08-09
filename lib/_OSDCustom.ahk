@@ -1,6 +1,6 @@
 /************************************************************************
  * @description OSDCustom (Dynamic Styling & Multi-Column Grid Engine)
- * @version 6.18.0 (fix min width for progressbar)
+ * @version 6.19.0 (DPI calcs)
  ***********************************************************************/
 
 #Requires AutoHotkey v2.0
@@ -58,6 +58,8 @@ class OSDCustom {
     static DWMCompatible {
         get => (VerCompare(A_OSVersion, OSDCustom.DWMMinVer) >= 0)
     }
+
+	static DPIScale(val) => Round(val * (A_ScreenDPI / 96))
 
     __Get(name, args) {
         if OSDCustom.HasProp(name)
@@ -263,8 +265,15 @@ class OSDCustom {
         this.MyGui := Gui(this.Options, this.Title)
         this.MyGui.OnEvent("Close", (*) => this.Destroy())
 
-        this.MyGui.MarginX := this.MarginX
-        this.MyGui.MarginY := this.MarginY
+        ; --- APPLY DPI SCALING TO BASE LAYOUT VARIABLES ---
+        scaledMarginX  := OSDCustom.DPIScale(this.MarginX)
+        scaledMarginY  := OSDCustom.DPIScale(this.MarginY)
+        scaledRowGap   := OSDCustom.DPIScale(this.RowGap)
+        scaledMaxWidth := OSDCustom.DPIScale(this.MaxWidth)
+        scaledMinWidth := OSDCustom.DPIScale(this.HasProp("MinWidth") ? this.MinWidth : OSDCustom.MinWidth)
+        
+        this.MyGui.MarginX := scaledMarginX
+        this.MyGui.MarginY := scaledMarginY
 
         hasProgressCell := false
         for cell in this.Cells {
@@ -305,17 +314,17 @@ class OSDCustom {
 
             w := 0
 			if (cell.Type == "Progress") {
-		        w := 100 ; Default pixel width for single-column progress bars
+		        w := OSDCustom.DPIScale(100) ; Default pixel width for single-column progress bars
             } else if (cell.Type == "Image") {
-                dims := this.GetImageDims(cell.Path, cell.TargetH)
-                w := dims.W + 8
+                dims := this.GetImageDims(cell.Path, OSDCustom.DPIScale(cell.TargetH))
+                w := dims.W + OSDCustom.DPIScale(8)
             } else {
                 fName := (IsObject(cell.Style) && cell.Style.HasProp("FontName")) ? cell.Style.FontName : this.FontName
                 fSize := (IsObject(cell.Style) && cell.Style.HasProp("FontSize")) ? cell.Style.FontSize : this.FontSize
                 fColor := (IsObject(cell.Style) && cell.Style.HasProp("FontColor")) ? cell.Style.FontColor : this.GetCurrentThemeColor("TextDefault")
                 FWeight := (IsObject(cell.Style) && cell.Style.HasProp("FontWeight")) ? cell.Style.FontWeight : this.FontWeight
-                bounds := this.CalculateTextSize(cell.Text, fName, fSize, FWeight, this.MaxWidth)
-                w := bounds.W + 8 
+                bounds := this.CalculateTextSize(cell.Text, fName, fSize, FWeight, scaledMaxWidth)
+                w := bounds.W + OSDCustom.DPIScale(8)
             }
             if (w > reqColW[cell.Col])
                 reqColW[cell.Col] := w
@@ -327,8 +336,8 @@ class OSDCustom {
 
         if (totalReqW == 0) {
             loop maxCol {
-                reqColW[A_Index] := 10
-                totalReqW += 10
+                reqColW[A_Index] := OSDCustom.DPIScale(10)
+                totalReqW += OSDCustom.DPIScale(10)
             }
         }
 
@@ -336,13 +345,13 @@ class OSDCustom {
             if (cell.Type != "Progress" && cell.ColSpan > 1) {
                 w := 0
                 if (cell.Type == "Image") {
-                    w := this.GetImageDims(cell.Path, cell.TargetH).W + 16
+                    w := this.GetImageDims(cell.Path, OSDCustom.DPIScale(cell.TargetH)).W + OSDCustom.DPIScale(16)
                 } else {
                     fName := (IsObject(cell.Style) && cell.Style.HasProp("FontName")) ? cell.Style.FontName : this.FontName
                     fSize := (IsObject(cell.Style) && cell.Style.HasProp("FontSize")) ? cell.Style.FontSize : this.FontSize
 					fColor := (IsObject(cell.Style) && cell.Style.HasProp("FontColor")) ? cell.Style.FontColor : this.GetCurrentThemeColor("TextDefault")
                     FWeight := (IsObject(cell.Style) && cell.Style.HasProp("FontWeight")) ? cell.Style.FontWeight : this.FontWeight
-                    w := this.CalculateTextSize(cell.Text, fName, fSize, FWeight, this.MaxWidth).W + 8
+                    w := this.CalculateTextSize(cell.Text, fName, fSize, FWeight, scaledMaxWidth).W + OSDCustom.DPIScale(8)
                 }
                 if (w > totalReqW) {
                     extraNeeded := w - totalReqW
@@ -354,13 +363,13 @@ class OSDCustom {
             }
         }
 
-        finalGuiWidth := totalReqW + (this.MarginX * 2)
-        if (this.HasProp("MinWidth") && finalGuiWidth < this.MinWidth)
-            finalGuiWidth := this.MinWidth
-        if (finalGuiWidth > this.MaxWidth)
-            finalGuiWidth := this.MaxWidth
+        finalGuiWidth := totalReqW + (scaledMarginX * 2)
+        if (finalGuiWidth < scaledMinWidth)
+            finalGuiWidth := scaledMinWidth
+        if (finalGuiWidth > scaledMaxWidth)
+            finalGuiWidth := scaledMaxWidth
 
-        contentWidth := finalGuiWidth - (this.MarginX * 2)
+        contentWidth := finalGuiWidth - (scaledMarginX * 2)
 
         colWidths := Map()
         distributedW := 0
@@ -378,14 +387,14 @@ class OSDCustom {
         loop maxRow
             rowHeights[A_Index] := 0
 
-        progressBarH := this.ProgressBarHeight
+        progressBarH := OSDCustom.DPIScale(this.ProgressBarHeight)
 
         for cell in this.Cells {
             colKey := colWidths.Has(cell.Col) ? cell.Col : 1
             cellW := (cell.ColSpan >= maxCol) ? contentWidth : colWidths[colKey]
 
             if (cell.Type == "Image") {
-                dims := this.GetImageDims(cell.Path, cell.TargetH)
+                dims := this.GetImageDims(cell.Path, OSDCustom.DPIScale(cell.TargetH))
                 cell.ComputedW := dims.W
                 cell.ComputedH := dims.H
                 if (cell.RowSpan == 1 && rowHeights.Has(cell.Row) && dims.H > rowHeights[cell.Row])
@@ -430,19 +439,19 @@ class OSDCustom {
         }
 
         rowY := Map()
-        currentY := this.MarginY
+        currentY := scaledMarginY
         loop maxRow {
             r := A_Index
             rowY[r] := currentY
             if (rowHeights.Has(r))
-                currentY += rowHeights[r] + this.RowGap
+                currentY += rowHeights[r] + scaledRowGap
         }
 
         for idx, cell in this.Cells {
             colKey := colWidths.Has(cell.Col) ? cell.Col : 1
 
             if (cell.ColSpan >= maxCol) {
-                cellX := this.MarginX
+                cellX := scaledMarginX
                 cellW := contentWidth
             } else {
                 currentOffsetX := 0
@@ -450,7 +459,7 @@ class OSDCustom {
                     if (colWidths.Has(A_Index))
                         currentOffsetX += colWidths[A_Index]
                 }
-                cellX := this.MarginX + currentOffsetX
+                cellX := scaledMarginX + currentOffsetX
                 cellW := colWidths[colKey]
             }
 
@@ -463,13 +472,13 @@ class OSDCustom {
                 loop cell.RowSpan {
                     r := cell.Row + A_Index - 1
                     if (rowHeights.Has(r))
-                        cellH += rowHeights[r] + (A_Index < cell.RowSpan ? this.RowGap : 0)
+                        cellH += rowHeights[r] + (A_Index < cell.RowSpan ? scaledRowGap : 0)
                 }
             } else {
-                cellH := rowHeights.Has(cell.Row) ? rowHeights[cell.Row] : 20
+                cellH := rowHeights.Has(cell.Row) ? rowHeights[cell.Row] : OSDCustom.DPIScale(20)
             }
             if (cellH < 1)
-                cellH := 20
+                cellH := OSDCustom.DPIScale(20)
 
             alignOpt := cell.Align == "Right" ? "Right" : (cell.Align == "Center" ? "Center" : "Left")
 
@@ -495,13 +504,9 @@ class OSDCustom {
                 initVal := IsNumber(cell.Value) ? Integer(cell.Value) : pMin
                 initVal := Max(pMin, Min(pMax, initVal))
 
-                ; --- CUSTOM HEIGHT CORRECTION ---
-                ; Pull custom height from class settings, otherwise default to 6 pixels
-                barH := (this.HasProp("ProgressBarHeight") && this.ProgressBarHeight > 0) ? this.ProgressBarHeight : 6
-                
-                ; Calculate centered vertical offset relative to the row's total text height
+                ; Apply scaling to custom progress bar heights
+                barH := OSDCustom.DPIScale((this.HasProp("ProgressBarHeight") && this.ProgressBarHeight > 0) ? this.ProgressBarHeight : 6)
                 barY := (cellY + (cellH - barH) / 2) + 1
-                ; --------------------------------
 
                 ctrl := this.MyGui.AddProgress(
                     "x" cellX " y" barY " w" cellW " h" barH
@@ -531,7 +536,7 @@ class OSDCustom {
         if (autoInsertedProgress)
             this.Cells.Pop()
 
-        finalGuiHeight := currentY - this.RowGap + this.MarginY
+        finalGuiHeight := currentY - scaledRowGap + scaledMarginY
 
         this.InternalState := "Ready"
         this.ApplyThemeColors()
@@ -590,11 +595,15 @@ class OSDCustom {
             targetY := monTop + (monHeight * Float(matchY[1]))
         }
 
+        ; Calculate slide distance properly for DPI
+        scaledSlide := OSDCustom.DPIScale(this.SlideDistance)
+        this.ActualSpeed := OSDCustom.DPIScale(this.Speed)
+
         this.PosX := Max(monLeft, Min(targetX - Integer(guiWidth / 2), monRight - guiWidth))
         this.FinalY := Max(monTop, Min(targetY - Integer(guiHeight / 2), monBottom - guiHeight))
         this.IsBottomHalf := (this.FinalY >= (monTop + (monHeight / 2) - guiHeight / 2))
-        this.StartY := this.IsBottomHalf ? (this.FinalY + this.SlideDistance) : (this.FinalY - this.SlideDistance)
-        this.AlphaStep := this.Opacity / (this.SlideDistance / this.Speed)
+        this.StartY := this.IsBottomHalf ? (this.FinalY + scaledSlide) : (this.FinalY - scaledSlide)
+        this.AlphaStep := this.Opacity / (scaledSlide / this.ActualSpeed)
 
         hwnd := this.MyGui.Hwnd
         if (this.State == "Hidden" || this.State == "SlidingOut") {
@@ -822,7 +831,7 @@ class OSDCustom {
         try {
             hdc := DllCall("GetDC", "Ptr", 0, "Ptr")
             if (!hdc)
-                return { W: maxW, H: 20 }
+                return { W: maxW, H: OSDCustom.DPIScale(20) }
 
             logPixelsY := DllCall("GetDeviceCaps", "Ptr", hdc, "Int", 90)
             if (!logPixelsY)
@@ -837,7 +846,7 @@ class OSDCustom {
 
             if (!hFont) {
                 DllCall("ReleaseDC", "Ptr", 0, "Ptr", hdc)
-                return { W: maxW, H: 20 }
+                return { W: maxW, H: OSDCustom.DPIScale(20) }
             }
 
             obm := DllCall("SelectObject", "Ptr", hdc, "Ptr", hFont, "Ptr")
@@ -849,7 +858,7 @@ class OSDCustom {
             return { W: NumGet(RECT, 8, "Int") - NumGet(RECT, 0, "Int"),
                 H: NumGet(RECT, 12, "Int") - NumGet(RECT, 4, "Int") }
         } catch {
-            return { W: maxW, H: 20 }
+            return { W: maxW, H: OSDCustom.DPIScale(20) }
         }
     }
 
