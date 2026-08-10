@@ -280,6 +280,8 @@ ShowMixerGuiNow() {
         return
     }
 
+	TrayHandler.IsMouseOver := false
+
     if (MainGui == "" || !WinExist(MainGui.Hwnd)) {
         CreateAudioMixerGui()
     } else {
