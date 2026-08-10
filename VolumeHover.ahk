@@ -5,12 +5,12 @@
  * @author Melo (melo@meloprofessional.com)
  * @date 2026/08/10
  * @releasedate 2026/07/07
- * @version 1.5.3.200
+ * @version 1.5.3.201
  ***********************************************************************/
 
 AppName := "Volume Hover"
 ;@Ahk2Exe-Let U_AppName = %A_PriorLine%
-AppVersion := "1.5.3.200"
+AppVersion := "1.5.3.201"
 ;@Ahk2Exe-Let U_Version = %A_PriorLine%
 AppDescription := "Controls application audio volumes instantly by hovering over the Windows system tray icon."
 ;@Ahk2Exe-AddResource .\resources\keyboard.ico, 209
@@ -153,7 +153,7 @@ VolDown_HoverWin(newHotkey := "", isGuiUpdate := false) {
 
 ; Instantiate the TrayIconHandler
 global TrayHandler := TrayIconHandler()
-TrayHandler.OnRightClick		:= (*) => A_TrayMenu.Show()
+TrayHandler.OnRightClick		:= (*) => ShowTrayMenu()
 TrayHandler.OnHover			    := (*) => ShowMixerGuiNow()
 TrayHandler.OnLeftClick			:= (*) => ShowMixerGuiNow()
 TrayHandler.OnLeave				:= (*) => ResetHoverFlags()

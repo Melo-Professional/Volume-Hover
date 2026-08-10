@@ -499,6 +499,11 @@ MonitorGetFromPoint(X, Y) {
     return MonitorGetPrimary()
 }
 
+ShowTrayMenu() {
+	TrayHandler.IsMouseOver := false
+	A_TrayMenu.Show()
+}
+
 AdjustTargetAppVolume(stepDelta) {
     global IsGuiVisible, WheelUsedDuringHover
     
