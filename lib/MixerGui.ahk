@@ -372,7 +372,7 @@ HideGuiWhenMouseLeaves() {
     mouseInsideGui := (mx >= gx && mx <= gr && my >= gy && my <= gb)
     
     ; Utilize TrayIconHandler state and bounds tracking
-    padding := Floor(24 * (A_ScreenDPI / 96))
+    padding := Floor(2 * (A_ScreenDPI / 96))
     mouseOverIconEstimate := (mx >= TrayHandler.TrayMouseX - padding && mx <= TrayHandler.TrayMouseX + padding && my >= TrayHandler.TrayMouseY - padding && my <= TrayHandler.TrayMouseY + padding)
 
     if (!mouseInsideGui && !mouseOverIconEstimate) {

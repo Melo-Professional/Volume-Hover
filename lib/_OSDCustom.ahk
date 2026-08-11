@@ -1,6 +1,6 @@
 /************************************************************************
  * @description OSDCustom (Dynamic Styling & Multi-Column Grid Engine)
- * @version 6.19.1 (DPI calcs)
+ * @version 6.20.0 (ProgressBar Width)
  ***********************************************************************/
 
 #Requires AutoHotkey v2.0
@@ -33,6 +33,7 @@ class OSDCustom {
     static Opacity := 245
     static RoundedCorners := 15
     static ProgressMaxValue := 100
+    static ProgressBarWidth := 100
     static ProgressBarHeight := 6
 
     ; Backward-compat: used only when no SetCellProgress cell is defined
@@ -314,17 +315,20 @@ class OSDCustom {
 
             w := 0
 			if (cell.Type == "Progress") {
-		        w := OSDCustom.DPIScale(100) ; Default pixel width for single-column progress bars
+		        ;w := OSDCustom.DPIScale(100) ; Default pixel width for single-column progress bars
+		        w := OSDCustom.DPIScale(this.ProgressBarWidth) ; Default pixel width for single-column progress bars
             } else if (cell.Type == "Image") {
                 dims := this.GetImageDims(cell.Path, OSDCustom.DPIScale(cell.TargetH))
-                w := dims.W + OSDCustom.DPIScale(8)
+                ;w := dims.W + OSDCustom.DPIScale(8)
+                w := dims.W + OSDCustom.DPIScale(this.RowGap)
             } else {
                 fName := (IsObject(cell.Style) && cell.Style.HasProp("FontName")) ? cell.Style.FontName : this.FontName
                 fSize := (IsObject(cell.Style) && cell.Style.HasProp("FontSize")) ? cell.Style.FontSize : this.FontSize
                 fColor := (IsObject(cell.Style) && cell.Style.HasProp("FontColor")) ? cell.Style.FontColor : this.GetCurrentThemeColor("TextDefault")
                 FWeight := (IsObject(cell.Style) && cell.Style.HasProp("FontWeight")) ? cell.Style.FontWeight : this.FontWeight
                 bounds := this.CalculateTextSize(cell.Text, fName, fSize, FWeight, scaledMaxWidth)
-                w := bounds.W + OSDCustom.DPIScale(8)
+                ;w := bounds.W + OSDCustom.DPIScale(8)
+                w := bounds.W + OSDCustom.DPIScale(this.RowGap)
             }
             if (w > reqColW[cell.Col])
                 reqColW[cell.Col] := w
@@ -345,13 +349,15 @@ class OSDCustom {
             if (cell.Type != "Progress" && cell.ColSpan > 1) {
                 w := 0
                 if (cell.Type == "Image") {
-                    w := this.GetImageDims(cell.Path, OSDCustom.DPIScale(cell.TargetH)).W + OSDCustom.DPIScale(16)
+                    ;w := this.GetImageDims(cell.Path, OSDCustom.DPIScale(cell.TargetH)).W + OSDCustom.DPIScale(16)
+                    w := this.GetImageDims(cell.Path, OSDCustom.DPIScale(cell.TargetH)).W + OSDCustom.DPIScale(this.RowGap)
                 } else {
                     fName := (IsObject(cell.Style) && cell.Style.HasProp("FontName")) ? cell.Style.FontName : this.FontName
                     fSize := (IsObject(cell.Style) && cell.Style.HasProp("FontSize")) ? cell.Style.FontSize : this.FontSize
 					fColor := (IsObject(cell.Style) && cell.Style.HasProp("FontColor")) ? cell.Style.FontColor : this.GetCurrentThemeColor("TextDefault")
                     FWeight := (IsObject(cell.Style) && cell.Style.HasProp("FontWeight")) ? cell.Style.FontWeight : this.FontWeight
-                    w := this.CalculateTextSize(cell.Text, fName, fSize, FWeight, scaledMaxWidth).W + OSDCustom.DPIScale(8)
+                    ;w := this.CalculateTextSize(cell.Text, fName, fSize, FWeight, scaledMaxWidth).W + OSDCustom.DPIScale(8)
+                    w := this.CalculateTextSize(cell.Text, fName, fSize, FWeight, scaledMaxWidth).W + OSDCustom.DPIScale(this.RowGap)
                 }
                 if (w > totalReqW) {
                     extraNeeded := w - totalReqW

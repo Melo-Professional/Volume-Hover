@@ -1,8 +1,8 @@
 /************************************************************************
  * @description Handles tray icon events
  * @author Melo (melo@meloprofessional.com)
- * @date 2026/08/09
- * @version 1.1.0
+ * @date 2026/08/10
+ * @version 1.2.0
  ***********************************************************************/
 
 #Requires AutoHotkey v2.0
@@ -56,12 +56,12 @@ class TrayIconHandler {
 
     ; --- Internal State Tracking ---
     HoverDelay := 600
-    LeaveDelay := 400  ; Time tolerance (ms) after leaving before triggering OnLeave
+    LeaveDelay := 200  ; Time tolerance (ms) after leaving before triggering OnLeave
+    PaddingBase := 2 ; Base padding before DPI scaling
     IsHovering := false
 	IsMouseOver := false
     TrayMouseX := 0
     TrayMouseY := 0
-    PaddingBase := 24 ; Base padding before DPI scaling
     
     ; Pending Leave Delay Timer Tracking
     PendingLeaveTimer := 0
@@ -103,7 +103,7 @@ class TrayIconHandler {
         this.SetupWheelHotkeys()
     }
 
-	; --- Mouse Wheel Registration ---
+; --- Mouse Wheel Registration ---
     SetupWheelHotkeys() {
         HotIf((*) => this.IsMouseOver)
         Hotkey("WheelUp", (*) => this.CallCallback(this.OnWheelUp, this), "On")
@@ -138,8 +138,11 @@ class TrayIconHandler {
                 this.TrayMouseX := x
                 this.TrayMouseY := y
 
-				; Instantly mark that mouse is inside icon area for wheel hotkeys
+                ; Instantly mark that mouse is inside icon area for wheel hotkeys
                 this.IsMouseOver := true
+
+                ; Start LeaveWatchdog immediately so leaving during HoverDelay is properly detected
+                SetTimer(this.LeaveWatchdogObj, 100)
 
                 ; If mouse came back while pending a leave, cancel the leave timer
                 if (this.PendingLeaveTimer) {
@@ -243,8 +246,6 @@ class TrayIconHandler {
         this.IsHovering := true
         if (this.OnHover)
             this.CallCallback(this.OnHover, this)
-            
-        SetTimer(this.LeaveWatchdogObj, 100)
     }
 
     LeaveWatchdog() {
