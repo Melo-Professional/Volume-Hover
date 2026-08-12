@@ -106,12 +106,16 @@ GetAudioSessionsForDevice(devicePtr) {
         if (pid == 0 || !ProcessExist(pid)) {
             continue ; sessionCtrl2 auto-released by AHK when out of scope
         }
-            
-        progName := ProcessGetName(pid)
-        if seenApps.Has(progName) {
-            continue ; sessionCtrl2 auto-released by AHK when out of scope
-        }
-        
+
+		try {            
+			progName := ProcessGetName(pid)
+			if seenApps.Has(progName) {
+				continue ; sessionCtrl2 auto-released by AHK when out of scope
+			}
+		} catch {
+			continue
+		}   
+
         ; ComObjQuery returns a ComValue wrapper
         if !(simpleVol := ComObjQuery(sessionCtrl2, IID_ISimpleAudioVolume)) {
             continue ; sessionCtrl2 auto-released by AHK when out of scope
