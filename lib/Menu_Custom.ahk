@@ -14,10 +14,8 @@ Menu_Custom() {
     TrayMenu := A_TrayMenu
     MoreMenu := TrayMenu.HasProp("MoreMenu") ? TrayMenu.MoreMenu : ""
 
-    ; Reload fix
-
     TrayMenu.Delete("Restart")
-    TrayMenu.Insert("Exit", "Restart", (*) => CustomReload())
+    TrayMenu.Insert("Exit", "Restart", (*) => ReloadClean())
     TrayMenu.ClickCount     := 2
 
     try MoreMenu.Delete("Suspend")
@@ -45,19 +43,6 @@ Menu_Custom() {
 ;    try MoreMenu.Delete("4&")
 ;    }
 
-    IsFunctionDefined(Name) {
-        try return HasMethod(%Name%)
-        return false
-    }
 }
 
 ;A_TrayMenu.Delete()
-
-CustomReload(*) {
-;    Cleanup()
-    if UseRegularReload {
-        Reload()
-    } else {
-        ReloadClean()
-    }
-}

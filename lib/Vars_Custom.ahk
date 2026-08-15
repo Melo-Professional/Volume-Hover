@@ -58,4 +58,3 @@ RegisterArrayItems(SaveToINI)
 LoadINI()
 ;@endregion
 
-UseRegularReload := false

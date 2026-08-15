@@ -1,45 +1,38 @@
 /************************************************************************
  * @description Lib to record custom hotkeys with GUI existence watchdog
  * @author Melo
- * @date 2026/07/20
- * @version 1.4.0 (watchdog added)
+ * @date 2026/08/14
+ * @version 1.4.1 (example updated)
  ***********************************************************************/
 
 /* EXAMPLE
+;@region Main
+SavedHotKey := "#T"
+HotkeyManager._RegisterSafely(SavedHotKey, "", MyAction)	; register a hotkey
 
-MyGui := Gui()
+MyAction(newHotkey := "", isGuiUpdate := false) {
+	Global SavedHotKey
 
-Hot1 := MyGui.Add("Button", "y+35 w240 h36")
-HotkeyManager.BindControl(Hot1, "^!c", RunMyFunc1) ; Bind it!
-
-Global General := {
-    KeyUp: "^#F12",
-}
-
-Global optKeyUp := SettingsGui.Add("Text", "h32 w240 Center 0x0200 +Border")
-HotkeyManager.BindControl(optKeyUp, General.KeyUp, VolUp_ActiveWin)
-
-MyGui.Show()
-CleanDestroy(*) {
-    MyGui.Destroy()
-    try HotkeyRecorder.Cancel()
-}
-
-
-RunMyFunc1(thisHotkey) {
-    Run("calc.exe")
-}
-
-VolUp_ActiveWin(newHotkey := "", isGuiUpdate := false) {
     if (isGuiUpdate) {
-        global General
-        General.KeyUp := newHotkey
-;        SaveINI()
-;        SettingsGUI_EnableDisable()
+        SavedHotKey := newHotkey
+        SaveINI()	; option to save to INI file
         return
     }
-;    AppVolumeControl.ActiveWindow(5)
+    Run("calc.exe")
 }
+;@endregion
+
+;@region Gui
+#r:: ShowExample()
+ShowExample() {
+	MyGui := Gui()
+
+	MyGui.Add("Text", "w240", "Your current hotkey " . SavedHotKey . " is already listening to run your action.`nEdit below:")
+	Button := MyGui.Add("Text", "h32 w240 Center 0x0200 +Border")
+	HotkeyManager.BindControl(Button, SavedHotKey, MyAction)
+	MyGui.Show()
+}
+;@endregion
 */
 
 #Requires AutoHotkey v2.0

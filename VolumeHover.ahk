@@ -3,14 +3,14 @@
 /************************************************************************
  * @description Controls application audio volumes instantly by hovering over the Windows system tray icon.
  * @author Melo (melo@meloprofessional.com)
- * @date 2026/08/12
+ * @date 2026/08/15
  * @releasedate 2026/07/07
- * @version 1.6.0.101
+ * @version 1.6.4.0
  ***********************************************************************/
 
 AppName := "Volume Hover"
 ;@Ahk2Exe-Let U_AppName = %A_PriorLine%
-AppVersion := "1.6.0.101"
+AppVersion := "1.6.4.0"
 ;@Ahk2Exe-Let U_Version = %A_PriorLine%
 AppDescription := "Controls application audio volumes instantly by hovering over the Windows system tray icon."
 ;@Ahk2Exe-AddResource .\resources\keyboard.ico, 209
@@ -42,19 +42,19 @@ A_HotkeyInterval := 1000
 ;@region Includes
 #Include *i <_CompilerDirectives>
 #Include *i <_Backup>
+#Include *i <_HelperFuncs>
 #Include *i <_Config&Vars>
-#Include *i <_MsgBoxCustom>
 #Include *i <_SaveSettings>
 #Include *i <_MessageManager>
 #Include *i <_TrayIconHandler>
 #Include *i <_Theme>
 #Include *i <_FrostedTheme>
+#Include *i <_GuiTracker>
 #Include *i <_TitleBar>
 #Include *i <_OSDCustom>
 #Include *i <_AutoUpdater>
 #Include *i <_ModernSlider>
 ;#Include *i <_Color_Picker_Dialog>
-#Include *i <_ReloadWithArgs>
 #Include *i <_HotkeysRecorder>
 #Include <Vars_Custom>
 #Include *i <_SplashScreen>
@@ -90,8 +90,7 @@ if IsSet(StartAutoUpdater) {
 ;@endregion
 
 #HotIf !A_IsCompiled
-;+^p::ReloadClean()
-^#p::CustomReload()
+^#p::ReloadClean()
 #HotIf
 
 ;@region Main
@@ -153,6 +152,7 @@ VolDown_HoverWin(newHotkey := "", isGuiUpdate := false) {
 
 ; Instantiate the TrayIconHandler
 global TrayHandler := TrayIconHandler()
+TrayHandler.HoverDelay := 400
 TrayHandler.OnRightClick		:= (*) => ShowTrayMenu()
 TrayHandler.OnHover			    := (*) => ShowMixerGuiNow()
 TrayHandler.OnLeftClick			:= (*) => ShowMixerGuiNow()
@@ -178,23 +178,9 @@ if IsSet(FirstRun) && FirstRun {
 	}
 }
 
-; RELOAD WITH ARGS
-if (A_Args.Length > 0)  && !RegExMatch(A_Args[1], "i)^--signal-update-success=") {
-    targetFuncName := A_Args[1]
-    if !A_IsCompiled && Debug
-        ToolTip("reload with args " A_Args[1])
-    try {
-        if (A_Args.Length >= 2) {
-            %targetFuncName%(A_Args[2])
-        } else {
-            %targetFuncName%()
-        }
-    } catch Any as e {
-        ;MsgBoxCustom("Failed to execute dynamic call: " e.Message, App.Name)
-        MsgBoxCustom(,,,e)
-    }
-}
+; CHECK RELOAD WITH ARGS
+CheckReloadArgs()
 
 ;ShowSettingsGUI()
 ;ShowAboutGUI()
-;^+p::Reload()
+

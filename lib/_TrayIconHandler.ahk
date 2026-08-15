@@ -1,8 +1,8 @@
 /************************************************************************
  * @description Handles tray icon events
  * @author Melo (melo@meloprofessional.com)
- * @date 2026/08/10
- * @version 1.2.0
+ * @date 2026/08/15
+ * @version 1.2.1 (hover triggers while moving)
  ***********************************************************************/
 
 #Requires AutoHotkey v2.0
@@ -57,6 +57,7 @@ class TrayIconHandler {
     ; --- Internal State Tracking ---
     HoverDelay := 600
     LeaveDelay := 200  ; Time tolerance (ms) after leaving before triggering OnLeave
+	HoverTimerActive := false
     PaddingBase := 2 ; Base padding before DPI scaling
     IsHovering := false
 	IsMouseOver := false
@@ -150,9 +151,10 @@ class TrayIconHandler {
                     this.PendingLeaveTimer := 0
                 }
 
-                if (!this.IsHovering) {
-                    SetTimer(this.HoverWatchdogObj, -this.HoverDelay) 
-                }
+                if (!this.IsHovering && !this.HoverTimerActive) {
+					this.HoverTimerActive := true
+					SetTimer(this.HoverWatchdogObj, -this.HoverDelay)
+				}
 
             ; --- LEFT CLICK / DOUBLE CLICK ---
             case 0x202: ; WM_LBUTTONUP
@@ -237,6 +239,7 @@ class TrayIconHandler {
 
     ; --- Hover & Bounding Box Logic ---
     HoverWatchdog() {
+		this.HoverTimerActive := false
         CoordMode("Mouse", "Screen")
         MouseGetPos(&currentX, &currentY)
         
@@ -269,23 +272,27 @@ class TrayIconHandler {
         }
     }
 
-    ConfirmLeave() {
-        CoordMode("Mouse", "Screen")
-        MouseGetPos(&currentX, &currentY)
+	ConfirmLeave() {
+		CoordMode("Mouse", "Screen")
+		MouseGetPos(&currentX, &currentY)
 
-        ; Double check if mouse is still outside after the tolerance time
-        if (this.IsOutsideTrayBounds(currentX, currentY)) {
-            this.IsHovering := false
+		if (this.IsOutsideTrayBounds(currentX, currentY)) {
+			this.IsHovering := false
 			this.IsMouseOver := false
-            SetTimer(this.LeaveWatchdogObj, 0)
-            this.PendingLeaveTimer := 0
-            
-            if (this.OnLeave)
-                this.CallCallback(this.OnLeave, this)
-        } else {
-            this.PendingLeaveTimer := 0
-        }
-    }
+			this.HoverTimerActive := false ; <-- Add this
+			
+			; Cancel any pending hover timer if mouse left early
+			SetTimer(this.HoverWatchdogObj, 0)
+			
+			SetTimer(this.LeaveWatchdogObj, 0)
+			this.PendingLeaveTimer := 0
+			
+			if (this.OnLeave)
+				this.CallCallback(this.OnLeave, this)
+		} else {
+			this.PendingLeaveTimer := 0
+		}
+	}
 
     ; --- DPI & Multi-Monitor Helpers ---
     IsOutsideTrayBounds(x, y) {

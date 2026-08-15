@@ -1,7 +1,6 @@
 #Requires AutoHotkey v2.0
 
-; Register GUI Window Messages
-MessageManager.Register(0x020A, OnMouseWheel)
+; Register GUI Window Messages (Only keeping VScroll and Activate)
 MessageManager.Register(0x0006, WM_ACTIVATE)
 
 global DynamicControls := []
@@ -10,15 +9,18 @@ global CurrentGuiHeight := 90
 
 global IsGuiVisible := false
 global WheelUsedDuringHover := false
-global TrayLeaveCount := 0
 global MainGui := ""
 global ChildGui := ""
+
+; GuiTracker Instances
+global MainTracker := ""
+global ChildTracker := ""
 
 ; Track scrolling properties
 global MaxGuiHeight := A_ScreenHeight - 80
 global VirtualGuiHeight := 0
 global CurrentScrollPos := 0
-global hovertimeout := 1000
+global hovertimeout := 400
 
 ; Initial tracking container (populated via General.PlaybackDevices)
 global VisibleDevicesConfig := Map() 
@@ -43,7 +45,7 @@ LoadDeviceConfig() {
 }
 
 CreateAudioMixerGui() {
-    global MainGui, ChildGui
+    global MainGui, ChildGui, MainTracker, ChildTracker
     LoadDeviceConfig()
     
     ; Main container window (Acts as the viewing viewport frame)
@@ -55,6 +57,26 @@ CreateAudioMixerGui() {
     ChildGui.SetFont("cWhite s9", "Segoe UI")
     ChildGui.BackColor := "262626"
     
+    ; --- Initialize GuiTrackers ---
+    ; Route background scrolls to the window scroller, and manage hover visibility
+    MainTracker := GuiTracker()
+    MainTracker.AddGui := MainGui
+    MainTracker.RegisterGui(Map(
+        "OnEnter",     (*) => CancelHide(),
+        "OnLeave",     (*) => ScheduleHide(),
+        "OnWheelUp",   (*) => ScrollGuiWindow(-24),
+        "OnWheelDown", (*) => ScrollGuiWindow(24)
+    ))
+
+    ChildTracker := GuiTracker()
+    ChildTracker.AddGui := ChildGui
+    ChildTracker.RegisterGui(Map(
+        "OnEnter",     (*) => CancelHide(),
+        "OnLeave",     (*) => ScheduleHide(),
+        "OnWheelUp",   (*) => ScrollGuiWindow(-24),
+        "OnWheelDown", (*) => ScrollGuiWindow(24)
+    ))
+
     RefreshSessionsForSelectedDevice()
 
     ; Apply the theme strictly ONCE during creation
@@ -73,7 +95,7 @@ CreateAudioMixerGui() {
 
 RefreshSessionsForSelectedDevice() {
     global MainGui, ChildGui, DynamicControls, SliderControlMap, DeviceMap, IsGuiVisible
-    global CurrentGuiHeight, MaxGuiHeight, VirtualGuiHeight, CurrentScrollPos
+    global CurrentGuiHeight, MaxGuiHeight, VirtualGuiHeight, CurrentScrollPos, ChildTracker
     
     ; If Gui doesn't exist yet, create it
     if (MainGui == "" || !WinExist(MainGui.Hwnd)) {
@@ -101,8 +123,14 @@ RefreshSessionsForSelectedDevice() {
 
     ; Settings menu icon aligned top-right
     ChildGui.SetFont("s14", "Segoe UI")
-    btnSettings := ChildGui.Add("Text", "cWhite x335 y19 w30 h28 Right", "⫶☰")
-    btnSettings.OnEvent("Click", SelectPlaybackDevicesGUI)
+    btnSettings := ChildGui.Add("Text", "cWhite x335 y19 w30 h28 Center 0x0200 Background1b1b1b", "⫶☰")
+    
+    ; Wire settings button via GuiTracker instead of OnEvent
+    ChildTracker.RegisterControl(btnSettings, Map(
+		"OnEnter", (ctrl) => (ctrl.Opt("+Background313131"), ctrl.Redraw()),
+		"OnLeave", (ctrl) => (ctrl.Opt("+Background1b1b1b"), ctrl.Redraw()),
+		"OnLClick", (ctrl) => (ctrl.Opt("+Background1b1b1b"), ctrl.Redraw(), SelectPlaybackDevicesGUI())
+		))
     DynamicControls.Push(btnSettings)
 
     ChildGui.SetFont("s9", "Segoe UI")
@@ -153,6 +181,12 @@ RefreshSessionsForSelectedDevice() {
             DynamicControls.Push(lblVol)
             DynamicControls.Push(sldVol.sliderCtrl)
             DynamicControls.Push(sldVol)
+            
+            ; Route scroll events directly to the slider to update volume (step of 2)
+			ChildTracker.RegisterControl(sldVol.sliderCtrl, Map(
+				"OnWheelUp",   UpdateSpecificSliderValue.Bind(session.ProgName, 2),
+				"OnWheelDown", UpdateSpecificSliderValue.Bind(session.ProgName, -2)
+			))
             
             yPos += 45
         }
@@ -230,7 +264,18 @@ RefreshSessionsForSelectedDevice() {
     }
 }
 
-UpdateSpecificSliderValue(progName, stepDelta) {
+; --- Hover Timing Controls ---
+CancelHide() {
+    SetTimer(HideAudioMixerGui, 0)
+}
+
+ScheduleHide() {
+    global hovertimeout
+    SetTimer(HideAudioMixerGui, hovertimeout)
+}
+
+;UpdateSpecificSliderValue(progName, stepDelta) {
+UpdateSpecificSliderValue(progName, stepDelta, *) {
     global SliderControlMap
     lookupKey := StrLower(progName)
     if (SliderControlMap.Has(lookupKey)) {
@@ -273,14 +318,19 @@ AdjustMasterVolume(stepDelta) {
 }
 
 ShowMixerGuiNow() {
-    global IsGuiVisible, TrayLeaveCount, CurrentGuiHeight, MainGui, hovertimeout, TrayHandler, WheelUsedDuringHover
+    global IsGuiVisible, CurrentGuiHeight, MainGui, TrayHandler, WheelUsedDuringHover
     
     if (WheelUsedDuringHover) {
         WheelUsedDuringHover := false
         return
     }
 
-	TrayHandler.IsMouseOver := false
+	; --- Abort if GUI is already open and visible ---
+    if (IsGuiVisible && MainGui != "" && WinExist(MainGui.Hwnd) && DllCall("IsWindowVisible", "Ptr", MainGui.Hwnd)) {
+        return
+    }
+
+	;TrayHandler.IsMouseOver := false
 
     if (MainGui == "" || !WinExist(MainGui.Hwnd)) {
         CreateAudioMixerGui()
@@ -346,49 +396,18 @@ ShowMixerGuiNow() {
     IsGuiVisible := true
     DllCall("user32\SetWindowPos", "Ptr", MainGui.Hwnd, "Ptr", -1, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x0043)
     
-    TrayLeaveCount := 0 
-    SetTimer(HideGuiWhenMouseLeaves, hovertimeout)
-}
-
-HideGuiWhenMouseLeaves() {
-    global IsGuiVisible, TrayLeaveCount, MainGui, ChildGui, hovertimeout, TrayHandler
-
-    if (MainGui == "" || !WinExist(MainGui.Hwnd)) {
-        return
-    }
-
-    CoordMode("Mouse", "Screen")
-    MouseGetPos(&mx, &my)
-    
-    ; Get actual physical window bounding box via Win32 API
-    rect := Buffer(16, 0)
-    DllCall("User32\GetWindowRect", "Ptr", MainGui.Hwnd, "Ptr", rect)
-    gx := NumGet(rect, 0, "Int")   ; Physical Left
-    gy := NumGet(rect, 4, "Int")   ; Physical Top
-    gr := NumGet(rect, 8, "Int")   ; Physical Right
-    gb := NumGet(rect, 12, "Int")  ; Physical Bottom
-    
-    ; Check if mouse is within physical window rectangle
-    mouseInsideGui := (mx >= gx && mx <= gr && my >= gy && my <= gb)
-    
-    ; Utilize TrayIconHandler state and bounds tracking
-    padding := Floor(2 * (A_ScreenDPI / 96))
-    mouseOverIconEstimate := (mx >= TrayHandler.TrayMouseX - padding && mx <= TrayHandler.TrayMouseX + padding && my >= TrayHandler.TrayMouseY - padding && my <= TrayHandler.TrayMouseY + padding)
-
-    if (!mouseInsideGui && !mouseOverIconEstimate) {
-        TrayLeaveCount++ 
-        if (TrayLeaveCount >= 2)
-            HideAudioMixerGui()
-    } else {
-        TrayLeaveCount := 0 
-    }
+    ; Schedule an initial hide sequence in case the mouse never enters the GUI area
+    ScheduleHide()
 }
 
 HideAudioMixerGui() {
     global IsGuiVisible, MainGui
 
+	if TrayHandler.IsMouseOver
+		return
+
     IsGuiVisible := false
-    SetTimer(HideGuiWhenMouseLeaves, 0)
+    CancelHide()
     
     if (MainGui != "" && WinExist(MainGui.Hwnd)) {
         ; Send window to coordinates outside visible boundaries without triggering structural focus signals
@@ -417,39 +436,6 @@ WM_ACTIVATE(wParam, lParam, msg, hwnd) {
 OnSliderChange(simpleVol, lblVol, newVol, *) {
     lblVol.Text := newVol
     SetAppVolume(simpleVol, newVol)
-}
-
-OnMouseWheel(wParam, lParam, msg, hwnd) {
-    global MainGui, CurrentScrollPos, VirtualGuiHeight, CurrentGuiHeight
-    if (MainGui == "" || !WinExist(MainGui.Hwnd))
-        return
-    
-    ; 1. Extract screen coordinates from lParam (WM_MOUSEWHEEL passes screen coords)
-    xScreen := lParam & 0xFFFF
-    if (xScreen > 0x7FFF) 
-        xScreen -= 0x10000
-        
-    yScreen := (lParam >> 16) & 0xFFFF
-    if (yScreen > 0x7FFF)
-        yScreen -= 0x10000
-
-    ; 2. Convert screen coordinates to client coordinates relative to MainGui
-    pt := Buffer(8)
-    NumPut("Int", xScreen, pt, 0)
-    NumPut("Int", yScreen, pt, 4)
-    DllCall("ScreenToClient", "Ptr", MainGui.Hwnd, "Ptr", pt)
-    mouseX := NumGet(pt, 0, "Int")
-    
-    ; 3. If mouse is on the left side (< 125), scroll the main GUI. 
-    ; If >= 125, do nothing here and let ModernSlider.HandleWheelMessage take over.
-    if (mouseX < 125) {
-        if (VirtualGuiHeight > CurrentGuiHeight) {
-            wheelDelta := (wParam << 32 >> 48)
-            scrollAmount := (wheelDelta > 0) ? -24 : 24
-            ScrollGuiWindow(scrollAmount)
-            return 0
-        }
-    }
 }
 
 ScrollGuiWindow(amount) {
