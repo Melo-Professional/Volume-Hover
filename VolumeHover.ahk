@@ -5,12 +5,12 @@
  * @author Melo (melo@meloprofessional.com)
  * @date 2026/08/15
  * @releasedate 2026/07/07
- * @version 1.6.4.100
+ * @version 1.6.5.110
  ***********************************************************************/
 
 AppName := "Volume Hover"
 ;@Ahk2Exe-Let U_AppName = %A_PriorLine%
-AppVersion := "1.6.4.100"
+AppVersion := "1.6.5.110"
 ;@Ahk2Exe-Let U_Version = %A_PriorLine%
 AppDescription := "Controls application audio volumes instantly by hovering over the Windows system tray icon."
 ;@Ahk2Exe-AddResource .\resources\keyboard.ico, 209
@@ -175,6 +175,7 @@ if IsSet(FirstRun) && FirstRun {
     if (A_Args.Length == 0 || !RegExMatch(A_Args[1], "i)^--signal-update-success=")) {
 		ShowSettingsGUI()
 		ShowMixerGuiNow()
+		hovertimeout := 400
 	}
 }
 

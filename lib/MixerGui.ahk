@@ -20,7 +20,7 @@ global ChildTracker := ""
 global MaxGuiHeight := A_ScreenHeight - 80
 global VirtualGuiHeight := 0
 global CurrentScrollPos := 0
-global hovertimeout := 400
+global hovertimeout := 8000
 
 ; Initial tracking container (populated via General.PlaybackDevices)
 global VisibleDevicesConfig := Map() 
@@ -85,11 +85,7 @@ CreateAudioMixerGui() {
     ; Monitor standard Windows vertical scroll updates
     MessageManager.Register(0x0115, WM_VSCROLL)
     
-    Sleep(500)
-    
-    ; Instantiate off-screen to initialize styles cleanly without taking focus
-    MainGui.Show("x-32000 y-32000 w380 h90 NoActivate Hide")
-    
+    ; Setup window attribute without showing/flashing it
     DllCall("dwmapi\DwmSetWindowAttribute", "Ptr", MainGui.Hwnd, "UInt", 33, "Int*", 2, "UInt", 4)
 }
 
@@ -127,10 +123,10 @@ RefreshSessionsForSelectedDevice() {
     
     ; Wire settings button via GuiTracker instead of OnEvent
     ChildTracker.RegisterControl(btnSettings, Map(
-		"OnEnter", (ctrl) => (ctrl.Opt("+Background313131"), ctrl.Redraw()),
-		"OnLeave", (ctrl) => (ctrl.Opt("+Background1b1b1b"), ctrl.Redraw()),
-		"OnLClick", (ctrl) => (ctrl.Opt("+Background1b1b1b"), ctrl.Redraw(), SelectPlaybackDevicesGUI())
-		))
+        "OnEnter", (ctrl) => (ctrl.Opt("+Background313131"), ctrl.Redraw()),
+        "OnLeave", (ctrl) => (ctrl.Opt("+Background1b1b1b"), ctrl.Redraw()),
+        "OnLClick", (ctrl) => (ctrl.Opt("+Background1b1b1b"), ctrl.Redraw(), SelectPlaybackDevicesGUI())
+    ))
     DynamicControls.Push(btnSettings)
 
     ChildGui.SetFont("s9", "Segoe UI")
@@ -183,10 +179,10 @@ RefreshSessionsForSelectedDevice() {
             DynamicControls.Push(sldVol)
             
             ; Route scroll events directly to the slider to update volume (step of 2)
-			ChildTracker.RegisterControl(sldVol.sliderCtrl, Map(
-				"OnWheelUp",   UpdateSpecificSliderValue.Bind(session.ProgName, 2),
-				"OnWheelDown", UpdateSpecificSliderValue.Bind(session.ProgName, -2)
-			))
+            ChildTracker.RegisterControl(sldVol.sliderCtrl, Map(
+                "OnWheelUp",   UpdateSpecificSliderValue.Bind(session.ProgName, 2),
+                "OnWheelDown", UpdateSpecificSliderValue.Bind(session.ProgName, -2)
+            ))
             
             yPos += 45
         }
@@ -274,7 +270,6 @@ ScheduleHide() {
     SetTimer(HideAudioMixerGui, hovertimeout)
 }
 
-;UpdateSpecificSliderValue(progName, stepDelta) {
 UpdateSpecificSliderValue(progName, stepDelta, *) {
     global SliderControlMap
     lookupKey := StrLower(progName)
@@ -318,19 +313,17 @@ AdjustMasterVolume(stepDelta) {
 }
 
 ShowMixerGuiNow() {
-    global IsGuiVisible, CurrentGuiHeight, MainGui, TrayHandler, WheelUsedDuringHover
+    global IsGuiVisible, CurrentGuiHeight, MainGui, WheelUsedDuringHover
     
     if (WheelUsedDuringHover) {
         WheelUsedDuringHover := false
         return
     }
 
-	; --- Abort if GUI is already open and visible ---
+    ; --- Abort if GUI is already open and visible ---
     if (IsGuiVisible && MainGui != "" && WinExist(MainGui.Hwnd) && DllCall("IsWindowVisible", "Ptr", MainGui.Hwnd)) {
         return
     }
-
-	;TrayHandler.IsMouseOver := false
 
     if (MainGui == "" || !WinExist(MainGui.Hwnd)) {
         CreateAudioMixerGui()
@@ -339,72 +332,90 @@ ShowMixerGuiNow() {
     }
 
     scaleFactor := A_ScreenDPI / 96
-    
     w := Floor(380 * scaleFactor)
     h := Floor(CurrentGuiHeight * scaleFactor)
     
-    ; Retrieve taskbar positioning metadata
-    tbInfo := TrayHandler.GetTaskbarPosition()
-    MonitorGetWorkArea(tbInfo.Monitor, &wl, &wt, &wr, &wb)
-    MonitorGet(tbInfo.Monitor, &ml, &mt, &mr, &mb)
+    ; 1. Get physical main taskbar dimensions
+    tbHwnd := WinExist("ahk_class Shell_TrayWnd")
+    if tbHwnd {
+        WinGetPos(&tbX, &tbY, &tbW, &tbH, tbHwnd)
+    } else {
+        tbX := 0, tbY := A_ScreenHeight - Floor(48 * scaleFactor), tbW := A_ScreenWidth, tbH := Floor(48 * scaleFactor)
+    }
 
-    TrayMouseX := TrayHandler.TrayMouseX
-    TrayMouseY := TrayHandler.TrayMouseY
-
-    ; Fallback: If no tray mouse event was recorded yet (e.g., FirstRun), target the taskbar tray area
-    if (TrayMouseX == 0 && TrayMouseY == 0) {
-        switch tbInfo.Pos {
-            case "Top":
-                TrayMouseX := wr - Floor(100 * scaleFactor)
-                TrayMouseY := mt
-            case "Left":
-                TrayMouseX := ml
-                TrayMouseY := wb - Floor(50 * scaleFactor)
-            case "Right":
-                TrayMouseX := mr
-                TrayMouseY := wb - Floor(50 * scaleFactor)
-            default: ; Bottom taskbar
-                TrayMouseX := wr - Floor(100 * scaleFactor)
-                TrayMouseY := mb
+    ; 2. Locate System Tray Notification Area explicitly via Windows API (Ignores Mouse)
+    trayNotifyHwnd := WinExist("ahk_class TrayNotifyWnd ahk_exe explorer.exe")
+    if (trayNotifyHwnd) {
+        WinGetPos(&tnX, &tnY, &tnW, &tnH, trayNotifyHwnd)
+        trayCenterX := tnX + (tnW // 2)
+        trayCenterY := tnY + (tnH // 2)
+    } else {
+        ; Fallback: Far right edge for horizontal taskbars, bottom for vertical
+        if (tbW > tbH) {
+            trayCenterX := tbX + tbW - Floor(80 * scaleFactor)
+            trayCenterY := tbY + (tbH // 2)
+        } else {
+            trayCenterX := tbX + (tbW // 2)
+            trayCenterY := tbY + tbH - Floor(80 * scaleFactor)
         }
     }
 
-    spawnX := TrayMouseX - (w // 2)
-    
-    ; Calculate vertical placement relative to taskbar position
-    switch tbInfo.Pos {
-        case "Top":
-            spawnY := TrayMouseY + Floor(25 * scaleFactor)
-        case "Bottom":
-            spawnY := TrayMouseY - h - Floor(15 * scaleFactor)
-        default:
-            spawnY := (TrayMouseY > (mt + mb) // 2) ? TrayMouseY - h - Floor(15 * scaleFactor) : TrayMouseY + Floor(25 * scaleFactor)
+    ; 3. Determine target monitor based purely on physical tray location
+    monIndex := MonitorGetFromPoint(trayCenterX, trayCenterY)
+    MonitorGet(monIndex, &mL, &mT, &mR, &mB)
+
+    ; 4. Determine taskbar orientation by physical proximity to monitor edges
+    distTop    := Abs(trayCenterY - mT)
+    distBottom := Abs(trayCenterY - mB)
+    distLeft   := Abs(trayCenterX - mL)
+    distRight  := Abs(trayCenterX - mR)
+    minDist    := Min(distTop, distBottom, distLeft, distRight)
+
+    offsetGap := Floor(8 * scaleFactor)
+
+    ; 5. Position GUI directly adjacent to System Tray (Center-aligned to Tray)
+    if (minDist == distTop) {
+        ; Top Taskbar
+        spawnX := trayCenterX - (w // 2)
+        spawnY := (tbY + tbH) + offsetGap
+    } else if (minDist == distBottom) {
+        ; Bottom Taskbar
+        spawnX := trayCenterX - (w // 2)
+        spawnY := tbY - h - offsetGap
+    } else if (minDist == distLeft) {
+        ; Left Taskbar
+        spawnX := (tbX + tbW) + offsetGap
+        spawnY := trayCenterY - (h // 2)
+    } else {
+        ; Right Taskbar
+        spawnX := tbX - w - offsetGap
+        spawnY := trayCenterY - (h // 2)
     }
-    
-    ; Clamp inside working area boundaries
-    if (spawnY < wt)
-        spawnY := wt
-    if (spawnY + h > wb)
-        spawnY := wb - h
-    if (spawnX < wl)
-        spawnX := wl
-    if (spawnX + w > wr)
-        spawnX := wr - w
+
+    ; 6. Safeguard: Clamp inside physical monitor boundaries so GUI doesn't go off-screen
+    pad := Floor(8 * scaleFactor)
+    if (spawnY < mT + pad)
+        spawnY := mT + pad
+    if (spawnY + h > mB - pad)
+        spawnY := mB - pad - h
+    if (spawnX < mL + pad)
+        spawnX := mL + pad
+    if (spawnX + w > mR - pad)
+        spawnX := mR - pad - w
     
     DllCall("User32\SetWindowPos", "Ptr", MainGui.Hwnd, "Ptr", 0, "Int", spawnX, "Int", spawnY, "Int", w, "Int", h, "UInt", 0x0014 | 0x0040)
     
     IsGuiVisible := true
     DllCall("user32\SetWindowPos", "Ptr", MainGui.Hwnd, "Ptr", -1, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x0043)
     
-    ; Schedule an initial hide sequence in case the mouse never enters the GUI area
     ScheduleHide()
 }
 
 HideAudioMixerGui() {
     global IsGuiVisible, MainGui
 
-	if TrayHandler.IsMouseOver
-		return
+    if TrayHandler.IsMouseOver
+        return
 
     IsGuiVisible := false
     CancelHide()
@@ -488,8 +499,8 @@ MonitorGetFromPoint(X, Y) {
 }
 
 ShowTrayMenu() {
-	TrayHandler.IsMouseOver := false
-	A_TrayMenu.Show()
+    TrayHandler.IsMouseOver := false
+    A_TrayMenu.Show()
 }
 
 AdjustTargetAppVolume(stepDelta) {

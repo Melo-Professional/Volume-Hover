@@ -11,6 +11,8 @@ Menu_Custom() {
 
     Global ChildGui, MainGui
 
+	A_IconTip := ""
+
     TrayMenu := A_TrayMenu
     MoreMenu := TrayMenu.HasProp("MoreMenu") ? TrayMenu.MoreMenu : ""
 
