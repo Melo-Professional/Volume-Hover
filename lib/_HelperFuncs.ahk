@@ -1,8 +1,8 @@
 /************************************************************************
  * @description QOL helper functions
  * @author Melo (melo@meloprofessional.com) and Pj
- * @date 2026/08/12
- * @version 1.0.0
+ * @date 2026/08/21
+ * @version 1.1.0 (Added Class OnFocusGain and Class OnFocusLoss)
  ***********************************************************************/
 
 
@@ -161,14 +161,14 @@ MsgBoxCustom(Text := "Message", Title := "Warning", Buttons := "OK", errorValue?
     MyGui := Gui(MyGuiOptions, MyGuiTitle)
 
     ; Layout Configuration
-    FontSize        := DPIScale(10)
-    btnGap          := DPIScale(10)
-    btnW            := DPIScale(90)
-    btnH            := DPIScale(30)
-    MyGui.MarginX   := DPIScale(30)
-    MyGui.MarginY   := DPIScale(25)
-    GuiMinWidth     := DPIScale(300)
-    GuiMaxWidth     := DPIScale(660)
+    FontSize        := 10
+    btnGap          := 10
+    btnW            := 90
+    btnH            := 30
+    MyGui.MarginX   := 30
+    MyGui.MarginY   := 25
+    GuiMinWidth     := 300
+    GuiMaxWidth     := 660
     
     static Result := ""
     Result := "" ; Reset to prevent click-bleeding
@@ -191,7 +191,7 @@ MsgBoxCustom(Text := "Message", Title := "Warning", Buttons := "OK", errorValue?
 
     ; 2. Primary Message Text
     ; Specifying a width constraint allows AHK to calculate text wrapping heights perfectly
-    txtCtrl := MyGui.AddText("Left w" (GuiMinWidth - DPIScale(60)), Text)
+    txtCtrl := MyGui.AddText("Left w" (GuiMinWidth - 60), Text)
 
     ; 3. System Error Block (Using an Edit Control to prevent clipping)
 ; Create a master report variable starting with the main display text
@@ -217,7 +217,7 @@ MsgBoxCustom(Text := "Message", Title := "Warning", Buttons := "OK", errorValue?
         LineCount := StrSplit(errorValueText, "`n").Length
         EditHeight := Min(Max(LineCount * 20, 100), 350)
 
-        GotError := MyGui.AddEdit("Left r" LineCount " w" (GuiMaxWidth - DPIScale(60)) " ReadOnly -E0x200 -WantReturn", errorValueText)
+        GotError := MyGui.AddEdit("Left r" LineCount " w" (GuiMaxWidth - 60) " ReadOnly -E0x200 -WantReturn", errorValueText)
         GotError.Move(,, GuiMinWidth - 60, EditHeight)
         
         ; Copies ALL messages combined to the clipboard
@@ -364,5 +364,110 @@ SoundPlayWin(audiofile := "Windows Notify", timer := 5000) {
     ReleaseFile() {
         ; Passing 0 as the path cleanly stops playback and releases file handles
         try DllCall("Winmm.dll\PlaySoundW", "Ptr", 0, "Ptr", 0, "UInt", 0x0)
+    }
+}
+
+/**
+ * @description {@link OnFocusGain|_HelperFuncs.ahk}
+ * Triggers a callback when a target window transitions from INACTIVE to ACTIVE.
+ * @param {String} WinTitle
+ * The window title or criteria (e.g., "ahk_class Shell_TrayWnd", "ahk_exe notepad.exe").
+ * @param {Func} Callback
+ * The function to execute when focus is gained. Receives the gained window's HWND as its first parameter.
+ * @returns {Void}
+ * @example <caption>Trigger an action when Notepad gains focus</caption>
+ * OnFocusGain("ahk_exe notepad.exe", NotepadGainedFocus)
+ * 
+ * NotepadGainedFocus(hwnd) {
+ *     SoundBeep(750, 100)
+ * }
+ */
+Class OnFocusGain {
+    static Callbacks := Map()
+
+    static __New() {
+        Persistent()
+        
+        DllCall("user32\SetWinEventHook",
+            "UInt", 0x0003, ; EVENT_SYSTEM_FOREGROUND
+            "UInt", 0x0003,
+            "Ptr", 0,
+            "Ptr", CallbackCreate(this.OnFocusChanged.Bind(this), "F"),
+            "UInt", 0,
+            "UInt", 0,
+            "UInt", 0)
+    }
+
+    ; Register a WinTitle and its corresponding callback function
+    static Call(WinTitle, Callback) {
+        this.Callbacks[WinTitle] := Callback
+    }
+
+    static OnFocusChanged(*) {
+        CurrentActive := WinExist("A")
+        if (!CurrentActive)
+            return
+
+        ; Check if the CURRENT active window matches any registered target
+        for WinTitle, Callback in this.Callbacks {
+            if WinExist(WinTitle " ahk_id " CurrentActive) {
+                try Callback.Call(CurrentActive)
+            }
+        }
+    }
+}
+
+/**
+ * @description {@link OnFocusLoss|_HelperFuncs.ahk}
+ * Triggers a callback when a target window transitions from ACTIVE to INACTIVE.
+ * @param {String} WinTitle
+ * The window title or criteria (e.g., "ahk_class Shell_TrayWnd", "ahk_exe notepad.exe").
+ * @param {Func} Callback
+ * The function to execute when focus is lost. Receives the lost window's HWND as its first parameter.
+ * @returns {Void}
+ * @example <caption>Trigger an action when the Windows Taskbar loses focus</caption>
+ * OnFocusLoss("ahk_class Shell_TrayWnd", TaskbarLostFocus)
+ * 
+ * TaskbarLostFocus(hwnd) {
+ *     ToolTip("Taskbar lost focus! HWND: " hwnd)
+ *     SetTimer(() => ToolTip(), -2000)
+ * }
+ */
+Class OnFocusLoss {
+    static Callbacks := Map()
+    static PrevActive := 0
+
+    static __New() {
+        this.PrevActive := WinExist("A")
+        Persistent()
+        
+        DllCall("user32\SetWinEventHook",
+            "UInt", 0x0003, ; EVENT_SYSTEM_FOREGROUND
+            "UInt", 0x0003,
+            "Ptr", 0,
+            "Ptr", CallbackCreate(this.OnFocusChanged.Bind(this), "F"),
+            "UInt", 0,
+            "UInt", 0,
+            "UInt", 0)
+    }
+
+    ; Register a WinTitle and its corresponding callback function
+    static Call(WinTitle, Callback) {
+        this.Callbacks[WinTitle] := Callback
+    }
+
+    static OnFocusChanged(*) {
+        CurrentActive := WinExist("A")
+        if (this.PrevActive = CurrentActive)
+            return
+
+        ; Check if the PREVIOUS active window matched any registered target
+        for WinTitle, Callback in this.Callbacks {
+            if (this.PrevActive && WinExist(WinTitle " ahk_id " this.PrevActive)) {
+                try Callback.Call(this.PrevActive)
+            }
+        }
+
+        this.PrevActive := CurrentActive
     }
 }

@@ -3,14 +3,14 @@
 /************************************************************************
  * @description Controls application audio volumes instantly by hovering over the Windows system tray icon.
  * @author Melo (melo@meloprofessional.com)
- * @date 2026/08/15
+ * @date 2026/08/21
  * @releasedate 2026/07/07
- * @version 1.6.5.110
+ * @version 1.6.6.103
  ***********************************************************************/
 
 AppName := "Volume Hover"
 ;@Ahk2Exe-Let U_AppName = %A_PriorLine%
-AppVersion := "1.6.5.110"
+AppVersion := "1.6.6.103"
 ;@Ahk2Exe-Let U_Version = %A_PriorLine%
 AppDescription := "Controls application audio volumes instantly by hovering over the Windows system tray icon."
 ;@Ahk2Exe-AddResource .\resources\keyboard.ico, 209
@@ -42,27 +42,28 @@ A_HotkeyInterval := 1000
 ;@region Includes
 #Include *i <_CompilerDirectives>
 #Include *i <_Backup>
-#Include *i <_HelperFuncs>
-#Include *i <_Config&Vars>
 #Include *i <_SaveSettings>
+#Include *i <_Config&Vars>
+#Include *i <_HelperFuncs>
 #Include *i <_MessageManager>
 #Include *i <_TrayIconHandler>
 #Include *i <_Theme>
 #Include *i <_FrostedTheme>
-#Include *i <_GuiTracker>
 #Include *i <_TitleBar>
-#Include *i <_OSDCustom>
-#Include *i <_AutoUpdater>
+#Include *i <_GuiTracker>
 #Include *i <_ModernSlider>
 ;#Include *i <_Color_Picker_Dialog>
 #Include *i <_HotkeysRecorder>
-#Include <Vars_Custom>
+#Include *i <_ODColors>
+#Include *i <_OSDCustom>
+#Include *i <_AutoUpdater>
 #Include *i <_SplashScreen>
+;#Include *i <_SplashOSD>
 #Include *i <_About>
 ;#Include *i <_Help>
 #Include *i <_Menu>
-#Include *i <_ODColors>
 
+#Include <Vars_Custom>
 #Include <Menu_Custom>
 #Include <SettingsGUI>
 #Include <AudioSessions>
@@ -70,22 +71,20 @@ A_HotkeyInterval := 1000
 #Include <AppVolumeControl>
 #Include <SelectPlaybackDevicesGUI>
 #Include <MixerGui>
-
-
 ;@endregion
 
 ;@region Startup
-; SPLASHSCREEN
-if (A_Args.Length == 0) && IsSet(SplashScreen){
-    SplashScreen()
+if !A_Args.Length {
+	if IsSet(SplashScreen) {
+	    SplashScreen()
+	} else if isSet(SplashScreenOSD) {
+		SplashScreenOSD()
+	}
 }
 
-; TRAY ICON + MENU
-StartMenu()
-Menu_Custom()
-if IsSet(StartAutoUpdater) {
-	%"StartAutoUpdater"%()
-}
+IsSet(StartMenu) ? StartMenu() : 0
+IsSet(Menu_Custom) ? Menu_Custom() : 0
+IsSet(StartAutoUpdater) ? StartAutoUpdater() : 0
 ;@endregion
 ;@endregion
 
@@ -152,7 +151,7 @@ VolDown_HoverWin(newHotkey := "", isGuiUpdate := false) {
 
 ; Instantiate the TrayIconHandler
 global TrayHandler := TrayIconHandler()
-TrayHandler.HoverDelay := 400
+TrayHandler.HoverDelay := 1000
 TrayHandler.OnRightClick		:= (*) => ShowTrayMenu()
 TrayHandler.OnHover			    := (*) => ShowMixerGuiNow()
 TrayHandler.OnLeftClick			:= (*) => ShowMixerGuiNow()
@@ -174,13 +173,14 @@ Cleanup(*) {
 if IsSet(FirstRun) && FirstRun {
     if (A_Args.Length == 0 || !RegExMatch(A_Args[1], "i)^--signal-update-success=")) {
 		ShowSettingsGUI()
+		hovertimeout := 8000
 		ShowMixerGuiNow()
 		hovertimeout := 400
 	}
 }
 
 ; CHECK RELOAD WITH ARGS
-CheckReloadArgs()
+IsSet(CheckReloadArgs) ? CheckReloadArgs() : 0
 
 ;ShowSettingsGUI()
 ;ShowAboutGUI()

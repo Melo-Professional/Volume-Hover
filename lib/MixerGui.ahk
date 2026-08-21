@@ -20,7 +20,7 @@ global ChildTracker := ""
 global MaxGuiHeight := A_ScreenHeight - 80
 global VirtualGuiHeight := 0
 global CurrentScrollPos := 0
-global hovertimeout := 8000
+global hovertimeout := 400
 
 ; Initial tracking container (populated via General.PlaybackDevices)
 global VisibleDevicesConfig := Map() 
@@ -49,11 +49,13 @@ CreateAudioMixerGui() {
     LoadDeviceConfig()
     
     ; Main container window (Acts as the viewing viewport frame)
-    MainGui := Gui("+AlwaysOnTop -Caption +ToolWindow +Owner")
+    ;MainGui := Gui("+AlwaysOnTop -Caption +ToolWindow +Owner")
+    MainGui := Gui("+AlwaysOnTop -Caption -SysMenu +ToolWindow +Owner")
     MainGui.SetFont("s9", "Segoe UI")
 
     ; Child window (Holds all the actual buttons, text, and sliders)
-    ChildGui := Gui("-Caption +Parent" MainGui.Hwnd)
+    ;ChildGui := Gui("-Caption +Parent" MainGui.Hwnd)
+    ChildGui := Gui("-Caption -SysMenu +Parent" MainGui.Hwnd)
     ChildGui.SetFont("cWhite s9", "Segoe UI")
     ChildGui.BackColor := "262626"
     

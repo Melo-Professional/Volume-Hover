@@ -7,13 +7,7 @@
 
 ;@region VARS
 ; CUSTOM VARIABLES
-App.Github := "https://github.com/Melo-Professional/Volume-Hover"
-if (App.HasOwnProp("Github")  && App.Github != "" && App.Github != "https://github.com/Melo-Professional/") {
-	App.UpdateAuto := true
-	App.UpdateFrequencyDays := 3
-	App.UpdateLastCheck := ""
-	SaveToINI.Push("App.UpdateAuto", "App.UpdateFrequencyDays", "App.UpdateLastCheck")
-}
+App.GitHubRepo := "https://github.com/Melo-Professional/Volume-Hover"
 
 /*
 Global General := {
@@ -49,12 +43,22 @@ Global General := {
 }
 ResetGeneral        := General.Clone()
 
+
+
+
 ;@region INI
+SaveToINI := []
+;SaveToINI.Push("Settings.SplashScreen")     ; add more to INI file
 SaveToINI.Push(
     "General.PlaybackDevices", "General.UseOSD", "General.OSDMonitor", "General.OSDPosition",
     "General.KeyUp", "General.KeyDown", "General.MouseUp", "General.MouseDown"
     )     ; add more to INI file
-RegisterArrayItems(SaveToINI)
-LoadINI()
+
+if App.HasOwnProp("GitHubRepo")
+	SaveToINI.Push("App.UpdateAuto", "App.UpdateFrequencyDays", "App.UpdateLastCheck")
+if (IsSet(INIManager) && (SaveToINI != [])) {
+	IsSet(RegisterArrayItems) ? RegisterArrayItems(SaveToINI) : 0
+	IsSet(LoadINI) ? LoadINI() : 0
+}
 ;@endregion
 

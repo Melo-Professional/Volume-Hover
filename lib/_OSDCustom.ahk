@@ -1,6 +1,6 @@
 /************************************************************************
  * @description OSDCustom (Dynamic Styling & Multi-Column Grid Engine)
- * @version 6.20.0 (ProgressBar Width)
+ * @version 6.21.0 (Mouse Position and Rounded Corners fix, progressbar marquee)
  ***********************************************************************/
 
 #Requires AutoHotkey v2.0
@@ -24,14 +24,14 @@ class OSDCustom {
     static FontSize := 11
     static TimeOut := 1800
     static Speed := 4
-    static Position := "x0.50 y0.50"
+    static Position := "x0.50 y0.50" ; options: "x<Percentage> y<Percentage>" | "mouse" for current mouse position
     static SlideDistance := 30
     static FontName := "Segoe UI"
     static FontWeight := 400
     static MarginX := 24
     static MarginY := 16
     static Opacity := 245
-    static RoundedCorners := 15
+    static RoundedCorners := 2	; (0 | 1 = Square, 2 = Smooth Standard ~10px, 3 = Smooth Small ~4px, Other Custom Values = no anti-aliasing)
     static ProgressMaxValue := 100
     static ProgressBarWidth := 100
     static ProgressBarHeight := 6
@@ -67,7 +67,7 @@ class OSDCustom {
             return OSDCustom.%name%
     }
 
-    __New(title := "Custom OSD", options := "-Caption +AlwaysOnTop +ToolWindow +E0x20 -DPIScale") {
+    __New(title := "Custom OSD", options := "-Caption +AlwaysOnTop +ToolWindow +E0x20 +E0x08000000 -DPIScale") {
         this.Title := title
         this.Options := options " +Owner"
         this.MyGui := ""
@@ -137,19 +137,34 @@ class OSDCustom {
         return imageObj
     }
 
-    ; range can be: "-50-100", [-50, 100], {Min:-50, Max:100}, or just 500 (meaning 0 to 500)
-/*     SetCellProgress(col := 1, row := this.ProgressBarRow, value := 0, alignment := "Center", range := "", colSpan := 999, rowSpan := 1) {
-        rng := OSDCustom.ParseRange(range, this.ProgressMaxValue)
-        this.Cells.Push({ Type: "Progress", Col: col, Row: row, Value: value, ColSpan: colSpan, RowSpan: rowSpan, Style: "", Align: alignment, Min: rng.Min, Max: rng.Max })
-    }
- */
+	/**
+	* @description {`SetCellText()`}
+	* Set a cell a a progress bar with positioning and styling options.
+	* @param {(Integer)} [column]
+	* @param {(Integer)} [row]
+	* @param {(Integer)} [value]
+	* initial value set to the progress bar
+	* @param {(String)} [aligment]
+	* @param {(String)} [range]
+	* range can be:
+	* "-50-100",
+	* [-50, 100],
+	* {Min:-50, Max:100},
+	* or just 500 (meaning 0 to 500)
+	* @param {(Integer)} [columnSpan]
+	* @param {(Integer)} [rowSpan]
+	* @param {(Object)} [style]
+	* @returns {(Object)}
+	* @example <caption>Set cell progress bar with animated Marquee style at column 1 row 6 and spanning by 1 row.</caption>
+	* MyOSD..SetCellProgress(1, 6,,,,, 1, {Marquee: true })
+	*/
+	SetCellProgress(col := 1, row := this.ProgressBarRow, value := 0, alignment := "Center", range := "", colSpan := 999, rowSpan := 1, styleObj := "") {
+		rng := OSDCustom.ParseRange(range, this.ProgressMaxValue)
+		progressObj := { Type: "Progress", Col: col, Row: row, Value: value, ColSpan: colSpan, RowSpan: rowSpan, Style: styleObj, Align: alignment, Min: rng.Min, Max: rng.Max }
+		this.Cells.Push(progressObj)
+		return progressObj
+	}
 
-    SetCellProgress(col := 1, row := this.ProgressBarRow, value := 0, alignment := "Center", range := "", colSpan := 999, rowSpan := 1) {
-        rng := OSDCustom.ParseRange(range, this.ProgressMaxValue)
-        progressObj := { Type: "Progress", Col: col, Row: row, Value: value, ColSpan: colSpan, RowSpan: rowSpan, Style: "", Align: alignment, Min: rng.Min, Max: rng.Max }
-        this.Cells.Push(progressObj)
-        return progressObj
-    }
 
     ClearCells() {
         this.Cells := []
@@ -514,10 +529,20 @@ class OSDCustom {
                 barH := OSDCustom.DPIScale((this.HasProp("ProgressBarHeight") && this.ProgressBarHeight > 0) ? this.ProgressBarHeight : 6)
                 barY := (cellY + (cellH - barH) / 2) + 1
 
+                ; --- MARQUEE ANIMATION CHECK ---
+                ; Check if the user passed {Marquee: true} in the style object
+                isMarquee := IsObject(cell.Style) && cell.Style.HasProp("Marquee") && cell.Style.Marquee
+                extraStyle := isMarquee ? " +0x08" : ""
+
                 ctrl := this.MyGui.AddProgress(
                     "x" cellX " y" barY " w" cellW " h" barH
-                    " Smooth Range" pMin "-" pMax,
+                    " Smooth Range" pMin "-" pMax extraStyle,
                     initVal)
+                
+                ; Send PBM_SETMARQUEE (0x040A) to start the animation
+                if (isMarquee) {
+                    SendMessage(0x040A, 1, 20, ctrl.Hwnd)
+                }
 
                 this.ProgressCtrl := ctrl
                 this.CellCtrls[idx] := ctrl
@@ -553,30 +578,64 @@ class OSDCustom {
         guiHeight := finalGuiHeight
         try this.MyGui.GetPos(, , &guiWidth, &guiHeight)
 
-        if OSDCustom.DWMCompatible {
+        ; --- DYNAMIC ROUNDING ENGINE ---
+        val := this.RoundedCorners
+
+        if (OSDCustom.DWMCompatible && val >= 0 && val <= 3) {
+            ; MODE 1: Native Windows DWM (Anti-Aliased + Native Drop Shadow)
+            ; Clear GDI region mask so DWM can anti-alias edges
+            WinSetRegion("", this.MyGui.Hwnd)
             try {
                 ncPolicy := Buffer(4, 0), NumPut("Int", 2, ncPolicy, 0)
                 DllCall("dwmapi\DwmSetWindowAttribute", "Ptr", this.MyGui.Hwnd, "UInt", 2, "Ptr", ncPolicy, "UInt", 4)
-                cornerPreference := Buffer(4, 0), NumPut("Int", 2, cornerPreference, 0)
+                
+                ; Map 0/1 -> DONOTROUND (1), 2 -> ROUND (2), 3 -> ROUNDSMALL (3)
+                dwmPrefVal := (val <= 1) ? 1 : val
+                cornerPreference := Buffer(4, 0), NumPut("Int", dwmPrefVal, cornerPreference, 0)
                 DllCall("dwmapi\DwmSetWindowAttribute", "Ptr", this.MyGui.Hwnd, "UInt", 33, "Ptr", cornerPreference, "UInt", 4)
+                
                 margins := Buffer(16, 0)
                 NumPut("Int", 1, margins, 0), NumPut("Int", 1, margins, 4)
                 NumPut("Int", 1, margins, 8), NumPut("Int", 1, margins, 12)
                 DllCall("dwmapi\DwmExtendFrameIntoClientArea", "Ptr", this.MyGui.Hwnd, "Ptr", margins)
             } catch {
             }
-        } else if (this.RoundedCorners > 0) {
-            try {
-                hRgn := DllCall("Gdi32.dll\CreateRoundRectRgn", "Int", 0, "Int", 0, "Int", guiWidth, "Int", guiHeight, "Int", this.RoundedCorners, "Int", this.RoundedCorners, "Ptr")
-                if (hRgn)
-                    DllCall("User32.dll\SetWindowRgn", "Ptr", this.MyGui.Hwnd, "Ptr", hRgn, "Int", true)
-            } catch {
+        } else if (val > 3) {
+            ; MODE 2: Custom Pixel Radius (e.g. 60, 100, Pill Shapes)
+            ; Calculate DPI scale ONLY here when GDI region clipping is actually needed
+            scaledRadius := OSDCustom.DPIScale(val)
+
+            if OSDCustom.DWMCompatible {
+                try {
+                    cornerPreference := Buffer(4, 0), NumPut("Int", 1, cornerPreference, 0) ; Disable DWM rounding override
+                    DllCall("dwmapi\DwmSetWindowAttribute", "Ptr", this.MyGui.Hwnd, "UInt", 33, "Ptr", cornerPreference, "UInt", 4)
+                }
             }
+            WinSetRegion("0-0 w" guiWidth " h" guiHeight " r" scaledRadius "-" scaledRadius, this.MyGui.Hwnd)
+        } else {
+            ; MODE 3: Square / Windows 10 Fallback
+            WinSetRegion("", this.MyGui.Hwnd)
         }
 
         monLeft := 0, monTop := 0, monRight := 0, monBottom := 0
         targetMonIndex := 1
-        if (StrLower(this.Monitor) == "auto") {
+
+        ; Ensure mouse position uses absolute screen coordinates
+        CoordMode("Mouse", "Screen")
+
+        ; Check if Position is explicitly set to "Mouse"
+        if (StrLower(Position) == "mouse") {
+            MouseGetPos(&mX, &mY)
+            loop MonitorGetCount() {
+                MonitorGet(A_Index, &mLeft, &mTop, &mRight, &mBottom)
+                if (mX >= mLeft && mX < mRight && mY >= mTop && mY < mBottom) {
+                    targetMonIndex := A_Index
+                    break
+                }
+            }
+            targetX := mX + OSDCustom.DPIScale(56)
+            targetY := mY + OSDCustom.DPIScale(26)
+        } else if (StrLower(this.Monitor) == "auto") {
             activeWin := WinExist("A")
             if (activeWin)
                 try targetMonIndex := this.GetMonitorFromWindow(activeWin)
@@ -585,20 +644,24 @@ class OSDCustom {
         }
 
         try {
-            MonitorGetWorkArea(targetMonIndex, &monLeft, &monTop, &monRight, &monBottom)
+            MonitorGet(targetMonIndex, &monLeft, &monTop, &monRight, &monBottom)
         } catch {
-            MonitorGetWorkArea(1, &monLeft, &monTop, &monRight, &monBottom)
+            MonitorGet(1, &monLeft, &monTop, &monRight, &monBottom)
         }
 
         monWidth := monRight - monLeft
         monHeight := monBottom - monTop
-        targetX := monLeft + (monWidth * 0.5)
-        targetY := monTop + (monHeight * 0.5)
-        if RegExMatch(Position, "i)x([\d\.]+)", &matchX) {
-            targetX := monLeft + (monWidth * Float(matchX[1]))
-        }
-        if RegExMatch(Position, "i)y([\d\.]+)", &matchY) {
-            targetY := monTop + (monHeight * Float(matchY[1]))
+
+        ; Only calculate default/ratio targetX/Y if Position wasn't "Mouse"
+        if (StrLower(Position) != "mouse") {
+            targetX := monLeft + (monWidth * 0.5)
+            targetY := monTop + (monHeight * 0.5)
+            if RegExMatch(Position, "i)x([\d\.]+)", &matchX) {
+                targetX := monLeft + (monWidth * Float(matchX[1]))
+            }
+            if RegExMatch(Position, "i)y([\d\.]+)", &matchY) {
+                targetY := monTop + (monHeight * Float(matchY[1]))
+            }
         }
 
         ; Calculate slide distance properly for DPI
@@ -609,7 +672,7 @@ class OSDCustom {
         this.FinalY := Max(monTop, Min(targetY - Integer(guiHeight / 2), monBottom - guiHeight))
         this.IsBottomHalf := (this.FinalY >= (monTop + (monHeight / 2) - guiHeight / 2))
         this.StartY := this.IsBottomHalf ? (this.FinalY + scaledSlide) : (this.FinalY - scaledSlide)
-        this.AlphaStep := this.Opacity / (scaledSlide / this.ActualSpeed)
+        this.AlphaStep := (scaledSlide > 0) ? (this.Opacity / (scaledSlide / this.ActualSpeed)) : this.Opacity
 
         hwnd := this.MyGui.Hwnd
         if (this.State == "Hidden" || this.State == "SlidingOut") {
@@ -928,7 +991,7 @@ class OSDCustom {
             if (reachedTarget) {
                 SetTimer(this.SlideInCb, 0)
                 this.State := "Visible"
-                WinSetTransparent(this.Opacity == 255 ? "" : this.Opacity, hwnd)
+                WinSetTransparent(Integer(this.Opacity), hwnd)
                 if (this.TargetDuration > 0)
                     SetTimer(this.DestroyCb, -this.TargetDuration)
             }
@@ -1073,29 +1136,25 @@ Simple.Show("Simple OSD!")
 ; TOOLTIP AT MOUSE POSITION
 ; ------------------------------------------------------------------------------
 
+
 ;	TOOLTIP USING OSD CUSTOM
 tt := OSDCustom()	; initiate OSD instance
 
 ; Tooltip Preset - lets customize it!
-tt.FontSize := 9
-tt.Opacity := 255
-tt.SlideDistance := 1
-tt.MarginX := 5
-tt.MarginY := 5
-tt.TimeOut := 3500
+tt.Opacity			:= 255
+tt.MinWidth			:= 0
+tt.SlideDistance	:= 0
+tt.FontSize			:= 9
+tt.MarginX			:= 7
+tt.MarginY			:= 3
+tt.TimeOut			:= 3500
+tt.RoundedCorners	:= 3
+tt.RowGap			:= 0
+tt.Position			:= "Mouse"
+tt.Theme			:= "Light"
 
 ; Show a tooltip at mouse position
-tt.Show("OSD Tooltip!", MousePosition())
-
-MousePosition() {
-    CoordMode("Mouse")
-    MouseGetPos(&mouseX, &mouseY)
-    xPct := Round((mouseX / A_ScreenWidth) + 0.02, 2) ; (little offset upwards)
-    yPct := Round((mouseY / A_ScreenHeight) - 0.02, 2) ; (little offset upwards)
-	xPct := max(0, min(1, xPct))
-	yPct := max(0, min(1, yPct))
-    return "x" . xPct . " y" . yPct
-}
+tt.Show("OSD Tooltip!")
 
 
 ; ------------------------------------------------------------------------------
