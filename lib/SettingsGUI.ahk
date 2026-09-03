@@ -358,6 +358,7 @@ ShowSettingsGUI() {
     ; ==============================================================================
 
     SettingsGui.Show("w" GuiWidth)
+	EnableAutoVerticalScroll(SettingsGui)
     btnSave.Focus()
     WinMoveTop(SettingsGui.Hwnd)
 

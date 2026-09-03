@@ -1,8 +1,8 @@
 /************************************************************************
  * @description About GUI
  * @author Melo (melo@meloprofessional.com)
- * @date 2026/08/16
- * @version 1.9.0
+ * @date 2026/09/03
+ * @version 1.10.0
  ***********************************************************************/
 
 #Requires AutoHotkey v2.0
@@ -124,6 +124,7 @@ ShowAboutGUI(*) {
     if UseAcrylicGUI {
         IsSet(ApplyThemeToGui) ? ApplyThemeToGui(MyGui, "Dark") : 0
         IsSet(FrostedTheme) ? FrostedTheme.Apply(MyGui) : 0
+		ApplyHDRFontQuality(MyGui)
     } else {
         IsSet(ApplyThemeToGui) ? ApplyThemeToGui(MyGui) : 0
         IsSet(WatchedGUIs) ? WatchedGUIs.Push(MyGui) : 0

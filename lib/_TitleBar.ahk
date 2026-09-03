@@ -1,8 +1,8 @@
 /************************************************************************
  * @description Custom Title Bar (Isolated Window Messages & Native Move Loop)
  * @author Melo (melo@meloprofessional.com)
- * @date 2026/07/27
- * @version 1.6.0 (High-Hz smooth native dragging via MoveWindow)
+ * @date 2026/09/01
+ * @version 1.6.2 (Parent Gui support)
  ***********************************************************************/
 
 class CustomTitleBar {
@@ -43,9 +43,10 @@ class CustomTitleBar {
                 localType := 0
                 hIcon := LoadPicture(iconTarget, iconFlags, &localType)
                 
-                if (hIcon)
+                if (hIcon) {
                     tb.IconCtrl := guiObj.Add("Pic", iconOpts, "HICON:*" hIcon)
-                else
+                    tb.IconCtrl.noScroll := true  ; <--- FIXED FROM SCROLLING
+                } else
                     cfg.ShowIcon := false
             } catch {
                 cfg.ShowIcon := false 
@@ -62,6 +63,7 @@ class CustomTitleBar {
             textWidth := w - currentX - btnAreaWidth - 10
             
             tb.TextCtrl := guiObj.Add("Text", "X" currentX " Y0 W" textWidth " H" cfg.Height " +0x200", cfg.Title)
+            tb.TextCtrl.noScroll := true  ; <--- FIXED FROM SCROLLING
         }
 
         ; 3. Isolated Drag Support
@@ -136,7 +138,9 @@ class CustomTitleBar {
     static RenderButtons(tb) {
         cfg := tb.Cfg
         guiObj := tb.Gui
-        bckcolor := tb.Gui.BackColor
+        bckcolor := guiObj.BackColor
+        tb.BaseBackColor := bckcolor ; Store original background
+        tb.HoveredButton := ""       ; Track hover state manually
         
         iconFont := (VerCompare(A_OSVersion, "10.0.22000") >= 0) ? "Segoe Fluent Icons" : "Segoe MDL2 Assets"
         guiObj.SetFont("S8 cWhite", iconFont)
@@ -145,22 +149,24 @@ class CustomTitleBar {
         btnHeight := tb.Height
         w := guiObj.HasProp("Width") ? guiObj.Width : 200
         
+        btnStyles := " +Center +0x200 Background" bckcolor
+
         if (cfg.Close) {
             btnX := "X" . (w - btnWidth)
-            tb.Buttons["Close"] := guiObj.Add("Text", btnX . " Y0 W" btnWidth " H" btnHeight " +Center +0x200 +0x100 +Background" bckcolor, Chr(0xE8BB))
-            tb.Buttons["Close"].OnEvent("Click", (*) => PostMessage(0x0010, 0, 0, guiObj.Hwnd))
+            tb.Buttons["Close"] := guiObj.Add("Text", btnX . " Y0 W" btnWidth " H" btnHeight btnStyles, Chr(0xE8BB))
+            tb.Buttons["Close"].noScroll := true
         }
         if (cfg.Max) {
             offset := cfg.Close ? 2 : 1
             btnX := "X" . (w - (btnWidth * offset))
-            tb.Buttons["Max"] := guiObj.Add("Text", btnX . " Y0 W" btnWidth " H" btnHeight " +Center +0x200 +0x100 +Background" bckcolor, Chr(0xE922))
-            tb.Buttons["Max"].OnEvent("Click", (*) => WinGetMinMax(guiObj.Hwnd) ? guiObj.Restore() : guiObj.Maximize())
+            tb.Buttons["Max"] := guiObj.Add("Text", btnX . " Y0 W" btnWidth " H" btnHeight btnStyles, Chr(0xE922))
+            tb.Buttons["Max"].noScroll := true
         }
         if (cfg.Min) {
             offset := (cfg.Close ? 1 : 0) + (cfg.Max ? 1 : 0) + 1
             btnX := "X" . (w - (btnWidth * offset))
-            tb.Buttons["Min"] := guiObj.Add("Text", btnX . " Y0 W" btnWidth " H" btnHeight " +Center +0x200 +0x100 +Background" bckcolor, Chr(0xE921))
-            tb.Buttons["Min"].OnEvent("Click", (*) => guiObj.Minimize())
+            tb.Buttons["Min"] := guiObj.Add("Text", btnX . " Y0 W" btnWidth " H" btnHeight btnStyles, Chr(0xE921))
+            tb.Buttons["Min"].noScroll := true
         }
 
         guiObj.SetFont("S10 cWhite", "Segoe UI")
@@ -188,73 +194,80 @@ class CustomTitleBar {
         }
     }
 
-    /**
-     * Smooth high-Hz drag loop using direct MoveWindow Win32 API calls.
-     * Supports high refresh rates (Sleep -1) and Win11-style maximized drag-to-restore.
-     */
     static WM_LBUTTONDOWN(wp, lp, msg, hwnd) {
-        if !this.TitleBars.Has(hwnd)
+        tb := ""
+        for registeredHwnd, item in this.TitleBars {
+            parentHwnd := DllCall("user32\GetAncestor", "Ptr", registeredHwnd, "UInt", 1, "Ptr")
+            if (hwnd == registeredHwnd || DllCall("user32\IsChild", "Ptr", registeredHwnd, "Ptr", hwnd) || hwnd == parentHwnd) {
+                tb := item
+                break
+            }
+        }
+        if !tb
             return
-        tb := this.TitleBars[hwnd]
-        mouseY := lp >> 16
-        
-        if (mouseY <= tb.Height) {
-            MouseGetPos ,,, &ctrlHwnd, 2
+
+        CoordMode "Mouse", "Screen"
+        MouseGetPos &startX, &startY
+        WinGetPos &tbX, &tbY,,, tb.Hwnd
+        mouseY := startY - tbY
+
+        if (mouseY >= 0 && mouseY <= tb.Height) {
+            targetHwnd := DllCall("user32\GetAncestor", "Ptr", tb.Hwnd, "UInt", 2, "Ptr")
+            if (!targetHwnd)
+                targetHwnd := tb.Hwnd
+
+            ; Coordinate Hit-Test for Buttons (catches clicks even if visually transparent)
             for name, ctrl in tb.Buttons {
-                if (DllCall("user32\IsWindow", "Ptr", ctrl.Hwnd) && ctrl.Hwnd == ctrlHwnd)
-                    return
+                if !DllCall("user32\IsWindow", "Ptr", ctrl.Hwnd)
+                    continue
+                WinGetPos &cX, &cY, &cW, &cH, ctrl.Hwnd
+                if (startX >= cX && startX <= cX + cW && startY >= cY && startY <= cY + cH) {
+                    if (name == "Close")
+                        PostMessage(0x0010, 0, 0, targetHwnd)
+                    else if (name == "Max")
+                        WinGetMinMax(targetHwnd) ? WinRestore(targetHwnd) : WinMaximize(targetHwnd)
+                    else if (name == "Min")
+                        WinMinimize(targetHwnd)
+                    return 0
+                }
             }
 
-            CoordMode "Mouse", "Screen"
-            MouseGetPos &startX, &startY
+            isMaximized := WinGetMinMax(targetHwnd) == 1
             
-            isMaximized := WinGetMinMax(hwnd) == 1
-            
-            ; --- 1. HANDLE MAXIMIZED WINDOW DRAGGING ---
             if (isMaximized) {
-                ; Get current screen width of the maximized window to calculate click ratio
-                WinGetPos &maxWinX, &maxWinY, &maxWinW, &maxWinH, "ahk_id " hwnd
+                WinGetPos &maxWinX, &maxWinY, &maxWinW, &maxWinH, "ahk_id " targetHwnd
                 clickRatioX := (startX - maxWinX) / maxWinW
 
-                ; Wait for the user to drag past a 5px threshold before un-maximizing
                 while GetKeyState("LButton", "P") {
                     MouseGetPos &curX, &curY
                     if (Abs(curX - startX) > 5 || Abs(curY - startY) > 5) {
-                        tb.Gui.Restore() ; Restore window dimensions
+                        WinRestore(targetHwnd)
                         break
                     }
                     Sleep(-1)
                 }
 
-                ; If user released LButton before dragging past threshold, exit
                 if !GetKeyState("LButton", "P")
                     return
                 
-                ; Calculate offset for the restored window size based on original click ratio
-                WinGetPos &winX, &winY, &winW, &winH, "ahk_id " hwnd
+                WinGetPos &winX, &winY, &winW, &winH, "ahk_id " targetHwnd
                 offsetX := winW * clickRatioX
                 offsetY := startY - winY
             } 
-            ; --- 2. HANDLE NORMAL WINDOW DRAGGING ---
             else {
-                WinGetPos &winX, &winY, &winW, &winH, "ahk_id " hwnd
+                WinGetPos &winX, &winY, &winW, &winH, "ahk_id " targetHwnd
                 offsetX := startX - winX
                 offsetY := startY - winY
             }
 
-            ; Lock mouse capture to window frame to prevent frame drops when dragging fast
             DllCall("user32\SetCapture", "Ptr", hwnd)
 
-            ; --- 3. HIGH-REFRESH RATE NATIVE MOVE LOOP ---
             while GetKeyState("LButton", "P") {
                 MouseGetPos &curX, &curY
                 newX := curX - offsetX
                 newY := curY - offsetY
                 
-                ; Fast Win32 Native API Move
-                DllCall("user32\MoveWindow", "Ptr", hwnd, "Int", newX, "Int", newY, "Int", winW, "Int", winH, "Int", 1)
-                
-                ; -1 uncaps the loop, yielding control to system messages instantly for high-Hz displays
+                DllCall("user32\MoveWindow", "Ptr", targetHwnd, "Int", newX, "Int", newY, "Int", winW, "Int", winH, "Int", 1)
                 Sleep(-1) 
             }
 
@@ -264,45 +277,74 @@ class CustomTitleBar {
     }
 
     static HandleMouseMove(wParam, lParam, msg, hwnd) {
-        for parentHwnd, tb in this.TitleBars {
-            if (!DllCall("user32\IsWindow", "Ptr", parentHwnd)) {
-                this.TitleBars.Delete(parentHwnd)
+        ; Start the coordinate-based hover tracker if it isn't running
+        if !this.HasProp("TrackingHover") || !this.TrackingHover {
+            SetTimer(ObjBindMethod(this, "TrackHoverState"), 50)
+            this.TrackingHover := true
+        }
+        return 0
+    }
+
+    static TrackHoverState() {
+        CoordMode "Mouse", "Screen"
+        MouseGetPos &mX, &mY
+
+        hoveredAny := false
+
+        for registeredHwnd, tb in this.TitleBars {
+            if (!DllCall("user32\IsWindow", "Ptr", registeredHwnd))
                 continue
-            }
             
             for name, ctrl in tb.Buttons {
-                if (ctrl.Hwnd == hwnd) {
-                    tme := Buffer(8 + A_PtrSize * 2, 0)
-                    NumPut("UInt", tme.Size, tme, 0)
-                    NumPut("UInt", 2, tme, 4) 
-                    NumPut("Ptr", hwnd, tme, 8)
-                    DllCall("user32\TrackMouseEvent", "Ptr", tme)
+                if !DllCall("user32\IsWindow", "Ptr", ctrl.Hwnd)
+                    continue
 
-                    if (name == "Close")
-                        ctrl.Opt("+BackgroundE81123")
-                    else
-                        ctrl.Opt("+Background333333")
-                    
-                    ctrl.Redraw()
-                    return 0
+                WinGetPos &cX, &cY, &cW, &cH, ctrl.Hwnd
+                isInside := (mX >= cX && mX <= cX + cW && mY >= cY && mY <= cY + cH)
+
+                if (isInside) {
+                    hoveredAny := true
+                    if (!tb.HasProp("HoveredButton") || tb.HoveredButton != name) {
+                        ; Clear the previous button if sliding horizontally between them
+                        if (tb.HasProp("HoveredButton") && tb.HoveredButton != "") {
+                            prevCtrl := tb.Buttons[tb.HoveredButton]
+                            prevCtrl.Opt("+Background" tb.BaseBackColor)
+                            prevCtrl.Redraw()
+                        }
+
+                        tb.HoveredButton := name
+                        if (name == "Close")
+                            ctrl.Opt("+BackgroundE81123")
+                        else
+                            ;ctrl.Opt("+Background333333")
+                            ;ctrl.Opt("+Background8b8b8b")
+                            ctrl.Opt("+Background292929")
+                        ctrl.Redraw()
+                    }
                 }
             }
+
+            ; If mouse leaves all buttons for this GUI, restore transparent color
+            if (!hoveredAny && tb.HasProp("HoveredButton") && tb.HoveredButton != "") {
+                if tb.Buttons.Has(tb.HoveredButton) {
+                    ctrl := tb.Buttons[tb.HoveredButton]
+                    ctrl.Opt("+Background" tb.BaseBackColor)
+                    ctrl.Redraw()
+                }
+                tb.HoveredButton := ""
+            }
+        }
+
+        ; Stop the timer when the mouse is outside all buttons to save CPU
+        if (!hoveredAny) {
+            SetTimer(ObjBindMethod(this, "TrackHoverState"), 0)
+            this.TrackingHover := false
         }
     }
 
     static HandleMouseLeave(wParam, lParam, msg, hwnd) {
-        for parentHwnd, tb in this.TitleBars {
-            if (!DllCall("user32\IsWindow", "Ptr", parentHwnd))
-                continue
-                
-            for name, ctrl in tb.Buttons {
-                if (ctrl.Hwnd == hwnd) {
-                    bc := tb.Gui.BackColor
-                    ctrl.Opt("+Background" bc)
-                    ctrl.Redraw()
-                    return 0
-                }
-            }
-        }
+        ; Intentionally left blank.
+        ; The TrackHoverState timer now handles exits perfectly regardless of TransColor.
+        return 0
     }
 }

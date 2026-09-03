@@ -133,7 +133,7 @@ ApplyThemeToGui(guiObj, TextColor := "Auto") {
                     
                     ; Direct implementation support for dynamic custom object property tags
                     tStyle := ctrlObj.HasOwnProp("ThemeStyle") ? ctrlObj.ThemeStyle : ""
-                    
+
                     if (tStyle == "Strong" || InStr(ctrlObj.Name, "Title") || InStr(ctrlObj.Name, "Strong"))
                         ctrlObj.Opt("c" . colors.TextStrong)
                     else if (tStyle == "Weak" || tStyle == "Smooth" || InStr(ctrlObj.Name, "Footer") || InStr(ctrlObj.Name, "Smooth"))

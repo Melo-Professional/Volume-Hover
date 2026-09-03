@@ -162,16 +162,20 @@ RefreshSessionsForSelectedDevice() {
             SplitPath(session.ProgName, , , , &cleanProgName)
             
             ; App Label (x15, w95)
-            lblApp := ChildGui.Add("Text", "x15 y" yPos " w95 h20 cWhite +0x4000 +0x0200", cleanProgName)
-            sliderY := yPos - 1
+            lblApp := ChildGui.Add("Text", "x15 y" yPos " w95 h40 cWhite +0x4000 +0x0200", cleanProgName)
+            ;sliderY := yPos - 1
+            ;sliderY := yPos + DPIScale(1)
 
             ; Volume Label (x318, w45 Right-Aligned)
-            lblVol := ChildGui.Add("Text", "x318 y" yPos " w45 h20 cWhite Right +0x0200", session.Volume)
+            lblVol := ChildGui.Add("Text", "x318 y" yPos " w45 h40 cWhite Right +0x0200", session.Volume)
             lblVol.SetFont("cWhite w600 s9", "Segoe UI")
             
+			sliderY := yPos + ((DPIScale(1) > 1) ? DPIScale(1) : 0)
+
             ; Dynamically scale slider track width for High DPI / 4K displays
-            sliderW := Floor(210 * scaleFactor)
-            sldVol := ModernSlider(ChildGui, "x112 y" sliderY " w" sliderW " h20", session.Volume, 0, 100, OnSliderChange.Bind(session.SimpleVol, lblVol))
+            ;sliderW := Floor(210 * scaleFactor)
+            sliderW := 210
+            sldVol := ModernSlider(ChildGui, "x112 y" sliderY " w" sliderW " h40 +0x0200", session.Volume, 0, 100, OnSliderChange.Bind(session.SimpleVol, lblVol))
             
             SliderControlMap[StrLower(session.ProgName)] := {Slider: sldVol, Label: lblVol, Session: session.SimpleVol}
             
@@ -333,83 +337,19 @@ ShowMixerGuiNow() {
         RefreshSessionsForSelectedDevice()
     }
 
-    scaleFactor := A_ScreenDPI / 96
-    w := Floor(380 * scaleFactor)
-    h := Floor(CurrentGuiHeight * scaleFactor)
-    
-    ; 1. Get physical main taskbar dimensions
-    tbHwnd := WinExist("ahk_class Shell_TrayWnd")
-    if tbHwnd {
-        WinGetPos(&tbX, &tbY, &tbW, &tbH, tbHwnd)
-    } else {
-        tbX := 0, tbY := A_ScreenHeight - Floor(48 * scaleFactor), tbW := A_ScreenWidth, tbH := Floor(48 * scaleFactor)
-    }
+;    scaleFactor := A_ScreenDPI / 96
+;    w := Floor(380 * scaleFactor)
+;    h := Floor(CurrentGuiHeight * scaleFactor)
 
-    ; 2. Locate System Tray Notification Area explicitly via Windows API (Ignores Mouse)
-    trayNotifyHwnd := WinExist("ahk_class TrayNotifyWnd ahk_exe explorer.exe")
-    if (trayNotifyHwnd) {
-        WinGetPos(&tnX, &tnY, &tnW, &tnH, trayNotifyHwnd)
-        trayCenterX := tnX + (tnW // 2)
-        trayCenterY := tnY + (tnH // 2)
-    } else {
-        ; Fallback: Far right edge for horizontal taskbars, bottom for vertical
-        if (tbW > tbH) {
-            trayCenterX := tbX + tbW - Floor(80 * scaleFactor)
-            trayCenterY := tbY + (tbH // 2)
-        } else {
-            trayCenterX := tbX + (tbW // 2)
-            trayCenterY := tbY + tbH - Floor(80 * scaleFactor)
-        }
-    }
+;    w := 380
+;    h := CurrentGuiHeight
 
-    ; 3. Determine target monitor based purely on physical tray location
-    monIndex := MonitorGetFromPoint(trayCenterX, trayCenterY)
-    MonitorGet(monIndex, &mL, &mT, &mR, &mB)
+	MainGui.Show("x-99999 y-99999 w" 380 "h" CurrentGuiHeight " Hide NoActivate")
+	GuiAtTray(MainGui, TrayHandler, &spawnX, &spawnY, &w, &h)
 
-    ; 4. Determine taskbar orientation by physical proximity to monitor edges
-    distTop    := Abs(trayCenterY - mT)
-    distBottom := Abs(trayCenterY - mB)
-    distLeft   := Abs(trayCenterX - mL)
-    distRight  := Abs(trayCenterX - mR)
-    minDist    := Min(distTop, distBottom, distLeft, distRight)
-
-    offsetGap := Floor(8 * scaleFactor)
-
-    ; 5. Position GUI directly adjacent to System Tray (Center-aligned to Tray)
-    if (minDist == distTop) {
-        ; Top Taskbar
-        spawnX := trayCenterX - (w // 2)
-        spawnY := (tbY + tbH) + offsetGap
-    } else if (minDist == distBottom) {
-        ; Bottom Taskbar
-        spawnX := trayCenterX - (w // 2)
-        spawnY := tbY - h - offsetGap
-    } else if (minDist == distLeft) {
-        ; Left Taskbar
-        spawnX := (tbX + tbW) + offsetGap
-        spawnY := trayCenterY - (h // 2)
-    } else {
-        ; Right Taskbar
-        spawnX := tbX - w - offsetGap
-        spawnY := trayCenterY - (h // 2)
-    }
-
-    ; 6. Safeguard: Clamp inside physical monitor boundaries so GUI doesn't go off-screen
-    pad := Floor(8 * scaleFactor)
-    if (spawnY < mT + pad)
-        spawnY := mT + pad
-    if (spawnY + h > mB - pad)
-        spawnY := mB - pad - h
-    if (spawnX < mL + pad)
-        spawnX := mL + pad
-    if (spawnX + w > mR - pad)
-        spawnX := mR - pad - w
-    
     DllCall("User32\SetWindowPos", "Ptr", MainGui.Hwnd, "Ptr", 0, "Int", spawnX, "Int", spawnY, "Int", w, "Int", h, "UInt", 0x0014 | 0x0040)
-    
     IsGuiVisible := true
     DllCall("user32\SetWindowPos", "Ptr", MainGui.Hwnd, "Ptr", -1, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x0043)
-    
     ScheduleHide()
 }
 

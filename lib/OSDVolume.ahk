@@ -53,7 +53,7 @@ ValueNormal 			:= VolumeOSDNormal.SetCellText(2, 1, " ", "Right", { FontSize: 12
 BarNormal 				:= VolumeOSDNormal.SetCellProgress(1, 2, 100,,,2)
 
 
-UpdateOSD(program, currentVol) {
+UpdateOSD(program, currentVol, Position?) {
 
     if (General.UseOSD = "Normal") {
 
@@ -63,7 +63,11 @@ UpdateOSD(program, currentVol) {
         VolumeOSDNormal.UpdateTextObject(ValueNormal, currentVol, 2000)
 
         if !(VolumeOSDNormal.IsVisible) {
-            VolumeOSDNormal.Show()
+			if IsSet(Position) {
+            	VolumeOSDNormal.Show(,Position)
+			} else {
+            	VolumeOSDNormal.Show()
+			}
         }
 
     } else if (General.UseOSD = "Slim") {
@@ -74,7 +78,11 @@ UpdateOSD(program, currentVol) {
         VolumeOSDSlim.UpdateTextObject(ValueSlim, currentVol, 2000)
 
         if !(VolumeOSDSlim.IsVisible) {
-            VolumeOSDSlim.Show()
+			if IsSet(Position) {
+            	VolumeOSDSlim.Show(,Position)
+			} else {
+            	VolumeOSDSlim.Show()
+			}
         }
     }
 }
@@ -111,5 +119,7 @@ switch General.OSDPosition {
     default :(
         VolumeOSDSlim.Position := "x0.50 y0.91"
         VolumeOSDNormal.Position := "x0.50 y0.91"
+;        VolumeOSDSlim.Position := "x0.50 y0.94"
+;        VolumeOSDNormal.Position := "x0.50 y0.75"
     )
 }

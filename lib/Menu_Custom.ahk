@@ -11,7 +11,8 @@ Menu_Custom() {
 
     Global ChildGui, MainGui
 
-	A_IconTip := ""
+	;A_IconTip := ""
+;	CleanTrayTip()
 
     TrayMenu := A_TrayMenu
     MoreMenu := TrayMenu.HasProp("MoreMenu") ? TrayMenu.MoreMenu : ""
@@ -25,6 +26,7 @@ Menu_Custom() {
 
     TrayMenu.Insert("More", "Settings...", (*) => ShowSettingsGUI())
     TrayMenu.Insert("More", "Playback Devices...", (*) => SelectPlaybackDevicesGUI())
+    TrayMenu.Insert("More", "Sound Control Panel", (*) => Run("control mmsys.cpl sounds"))
 
 
     ; Custom items

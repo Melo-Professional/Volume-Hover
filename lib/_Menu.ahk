@@ -1,8 +1,8 @@
 /************************************************************************
  * @description Menu Template
  * @author Melo (melo@meloprofessional.com)
- * @date 2026/08/12
- * @version 2.8.0
+ * @date 2026/08/25
+ * @version 2.9.0 ( Added Debug)
  ***********************************************************************/
 
 #Requires AutoHotkey v2.0
@@ -55,9 +55,15 @@ StartMenu() {
     MoreMenu.Add()
     MoreMenu.Add("Explore", (*) => Run('explorer.exe /select,"' . A_ScriptFullPath . '"'))
     
-    if !A_IsCompiled
+    if !A_IsCompiled {
         MoreMenu.Add("Edit", (*) => Run('explorer.exe /edit,"' . A_ScriptFullPath . '"'))
         ;MoreMenu.Add("Edit", (*) => Run '*edit "' . scriptPath . '"')
+
+        MoreMenu.Add("Debug", HandlerToggleDebug)
+		if isSet(Debug) && Debug {
+			MoreMenu.Check("Debug")
+		}
+	}
     
     ; 3. Check for Help GUI function
     if IsFunctionDefined("ShowHelpGUI") {
@@ -181,6 +187,13 @@ StartMenu() {
         TraySetIcon(App.Icon,, true)
         MyMenu.ToggleCheck(ItemName)
     }
+
+	HandlerToggleDebug(ItemName, ItemPos, MyMenu) {
+		global Debug
+
+		Debug := !Debug
+		Debug ? MyMenu.Check(ItemName) : MyMenu.Uncheck(ItemName)
+	}
 
     ; --- FIRST RUN NOTIFICATION ---
     Global FirstRun := false

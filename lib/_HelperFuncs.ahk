@@ -1,8 +1,8 @@
 /************************************************************************
  * @description QOL helper functions
  * @author Melo (melo@meloprofessional.com) and Pj
- * @date 2026/08/21
- * @version 1.1.0 (Added Class OnFocusGain and Class OnFocusLoss)
+ * @date 2026/09/02
+ * @version 1.3.8 (CleanTrayTip)
  ***********************************************************************/
 
 
@@ -469,5 +469,344 @@ Class OnFocusLoss {
         }
 
         this.PrevActive := CurrentActive
+    }
+}
+
+/**
+* @description {@link _Debug|_HelperFuncs.ahk}
+* Inspects variable state and caller stack details, outputting results via ToolTip, file logging, or debug console.
+* *Requires a Debug variable set to true.
+* @param {Any} [val="[CHECKPOINT]"]
+* The value, variable, array, or map to inspect.
+* @param {String} [mode="ToolTip"]
+* Output mode: "ToolTip", "Log", "Both", or "OutputDebug".
+* @param {Integer} [duration=3000]
+* Duration in milliseconds for the ToolTip to display before auto-closing.
+* @returns {Any}
+* Returns the input val unchanged to allow inline debugging within expressions.
+* @example Log an object state and display a temporary ToolTip
+* myData := Map("user", "Admin", "active", true)
+* _Debug(myData, "Both", 5000)
+* @example Both log to file and display a 5-second ToolTip
+* _Debug("Critical section completed", "Both", 5000)
+* @example Log an object to file
+* myMap := Map("status", 200, "user", "Admin")
+* _Debug(myMap, "Log")
+* ; Inline usage example:
+* result := _Debug(CalculateTotal(10, 20))
+*/
+_Debug(val := "[CHECKPOINT]", mode := "ToolTip", duration := 6000) {
+	if !IsSet(Debug) || !Debug
+		return
+
+    ; 1. Inspect caller stack frame (-1 gets caller details)
+    caller := Error("", -1)
+    
+    ; Extract caller details safely
+    file := caller.File ? RegExReplace(caller.File, "^.*\\") : "Main Script"
+    line := caller.Line ? caller.Line : "Unknown"
+    fn   := caller.What ? caller.What : "Global Scope"
+    
+    ; 2. Format payload string (Handles Objects/Arrays/Maps gracefully)
+    formattedVal := _Stringify(val)
+    timestamp    := FormatTime(, "yyyy-MM-dd HH:mm:ss")
+    logLine      := Format("[{1}] [{2}:{3} -> {4}()]: {5}", timestamp, file, line, fn, formattedVal)
+    
+    ; 3. Output Handlers
+    if (mode = "Log" || mode = "Both") {
+        try FileAppend(logLine "`n", ".debug_log.txt", "UTF-8")
+    }
+    
+    if (mode = "ToolTip" || mode = "Both") {
+        static tipID := 2
+        currentID := tipID
+        
+        ; Display ToolTip at mouse cursor position
+        MouseGetPos(&x, &y)
+        ToolTip(Format("LINE {1} ({2}):`n{3}", line, fn, formattedVal), x + 15, y + 15, currentID)
+        
+        ; Clear tooltip automatically after specified duration
+        SetTimer () => ToolTip(,,, currentID), -Abs(duration)
+        
+        ; Rotate IDs between 1 and 20 to allow multiple floating tips simultaneously
+        tipID := (tipID >= 20) ? 2 : tipID + 1
+    }
+    
+    if (mode = "OutputDebug") {
+        OutputDebug(logLine "`n")
+    }
+    
+    return val
+
+	_Stringify(obj) {
+		if !IsObject(obj)
+			return String(obj)
+		
+		str := ""
+		if obj is Array {
+			for idx, item in obj
+				str .= (A_Index > 1 ? ", " : "") . _Stringify(item)
+			return "[" str "]"
+		} else if obj is Map {
+			for k, v in obj
+				str .= (A_Index > 1 ? ", " : "") . k ": " . _Stringify(v)
+			return "Map(" str ")"
+		}
+		return Object.Prototype.ToString.Call(obj)
+	}
+}
+
+
+
+/**
+ * @description {@link GuiAtTray|_HelperFuncs.ahk}
+ * Returns physical coordinates X and Y at 
+ * A: app icon at system tray + 8 pixels gap
+ * B: the center of system tray + 8 pixels gap
+ * Useful for positioning a gui at tray
+ * @param GuiObj
+ * The GUI to calculate position
+ * @param TrayIconHandlerObj
+ * Optional a IconTrayHandlerObject to get precise hovering coordinates
+ * @param spawnX
+ * The X coordinate
+ * @param spawnY
+ * The Y coordinate
+ * @param w
+ * The width of the GUI
+ * @param h
+ * The Heights of the GUI
+ * @example <caption> Sends a GUI, a icon tray handler and Gets current tray position and returns x and y to show a GUI. Then show the GUI with physical coordinates.</caption>
+ * GuiAtTray(MyGui, TrayHandler, &spawnX, &spawnY, &w, &h)
+ * DllCall("User32\SetWindowPos", "Ptr", MyGui.Hwnd, "Ptr", -1, "Int", spawnX, "Int", spawnY, "Int", w, "Int", h, "UInt", 0x0050)
+ */
+GuiAtTray(GuiObj, TrayIconHandlerObj, &spawnX, &spawnY, &w, &h) {
+    if !WinExist(GuiObj.Hwnd)
+        return
+
+    scaleFactor := A_ScreenDPI / 96
+
+    ; WinGetPos retrieves exact physical pixel dimensions directly from the window handle
+    WinGetPos(, , &w, &h, GuiObj.Hwnd)
+
+    tbHwnd := WinExist("ahk_class Shell_TrayWnd")
+    if tbHwnd {
+        WinGetPos(&tbX, &tbY, &tbW, &tbH, tbHwnd)
+    } else {
+        tbX := 0, tbY := A_ScreenHeight - Floor(48 * scaleFactor), tbW := A_ScreenWidth, tbH := Floor(48 * scaleFactor)
+    }
+
+    ; Locate Tray Control inside Shell_TrayWnd
+    trayNotifyHwnd := 0
+    try trayNotifyHwnd := ControlGetHwnd("TrayNotifyWnd1", "ahk_class Shell_TrayWnd")
+
+    if (trayNotifyHwnd) {
+        WinGetPos(&tnX, &tnY, &tnW, &tnH, trayNotifyHwnd)
+        trayCenterX := tnX + (tnW // 2)
+        trayCenterY := tnY + (tnH // 2)
+    } else {
+        if (tbW > tbH) {
+            trayCenterX := tbX + tbW - Floor(80 * scaleFactor)
+            trayCenterY := tbY + (tbH // 2)
+        } else {
+            trayCenterX := tbX + (tbW // 2)
+            trayCenterY := tbY + tbH - Floor(80 * scaleFactor)
+        }
+    }
+
+    monIndex := MonitorGetFromPoint(trayCenterX, trayCenterY)
+    MonitorGet(monIndex, &mL, &mT, &mR, &mB)
+
+    MonitorGetFromPoint(X, Y) {
+        Loop MonitorGetCount() {
+            MonitorGet(A_Index, &Left, &Top, &Right, &Bottom)
+            if (X >= Left && X <= Right && Y >= Top && Y <= Bottom)
+                return A_Index
+        }
+        return MonitorGetPrimary()
+    }
+
+    distTop    := Abs(trayCenterY - mT)
+    distBottom := Abs(trayCenterY - mB)
+    distLeft   := Abs(trayCenterX - mL)
+    distRight  := Abs(trayCenterX - mR)
+    minDist    := Min(distTop, distBottom, distLeft, distRight)
+
+    offsetGap := Floor(8 * scaleFactor)
+    useTrayHandler := IsObject(TrayIconHandlerObj) && TrayIconHandlerObj.HasOwnProp("TrayMouseX") && TrayIconHandlerObj.TrayMouseX != 0
+
+    if (minDist == distTop) {
+        spawnX := useTrayHandler ? TrayIconHandlerObj.TrayMouseX - (w // 2) : trayCenterX - (w // 2)
+        spawnY := useTrayHandler ? Max(TrayIconHandlerObj.TrayMouseY, tbY + tbH) + offsetGap : tbY + tbH + offsetGap
+    } else if (minDist == distBottom) {
+        spawnX := useTrayHandler ? TrayIconHandlerObj.TrayMouseX - (w // 2) : trayCenterX - (w // 2)
+        spawnY := useTrayHandler ? Min(TrayIconHandlerObj.TrayMouseY, tbY) - h - offsetGap : tbY - h - offsetGap
+    } else if (minDist == distLeft) {
+        spawnX := useTrayHandler ? Max(TrayIconHandlerObj.TrayMouseX, tbX + tbW) + offsetGap : tbX + tbW + offsetGap
+        spawnY := useTrayHandler ? TrayIconHandlerObj.TrayMouseY - (h // 2) : trayCenterY - (h // 2)
+    } else {
+        spawnX := useTrayHandler ? Min(TrayIconHandlerObj.TrayMouseX, tbX) - w - offsetGap : tbX - w - offsetGap
+        spawnY := useTrayHandler ? TrayIconHandlerObj.TrayMouseY - (h // 2) : trayCenterY - (h // 2)
+    }
+
+    pad := Floor(8 * scaleFactor)
+    if (spawnY < mT + pad)
+        spawnY := mT + pad
+    if (spawnY + h > mB - pad)
+        spawnY := mB - pad - h
+    if (spawnX < mL + pad)
+        spawnX := mL + pad
+    if (spawnX + w > mR - pad)
+        spawnX := mR - pad - w
+}
+
+
+/**
+ * @description {@link GuiAtTray|_HelperFuncs.ahk}
+ * Parse an object into strings to easy visualization of data
+ * @param obj 
+ * The Object to parse
+ * @returns {String} 
+ * String to print as tooltip or msgbox or whatever
+ * @example <caption> Shows a msgbox with the content of an object from method</caption>
+ * msgbox(ObjToString(TrayHandler.GetTaskbarPosition()))
+ */
+ObjToString(obj) {
+    str := ""
+    for prop, val in obj.OwnProps()
+        str .= prop ": " val "`n"
+    return RTrim(str, "`n")
+}
+
+/**
+ * @description {@link EnableAutoScroll|_HelperFuncs.ahk}
+ * Dynamically enables mouse wheel vertical scrolling for a GUI without native scrollbars when content exceeds visible bounds.
+ * Retains pinned controls (.noScroll := true), prevents High-DPI position drift, and cleanups message hooks on close/destroy.
+ * @param {Gui} guiObj 
+ * The AutoHotkey GUI object instance to apply auto-scrolling to
+ * @param {Integer} [scrollSpeed=50] 
+ * Pixel distance moved per mouse wheel notch click
+ * @param {Float} [maxScreenRatio=1.0] 
+ * Maximum allowable screen height ratio before constraining the GUI size
+ * @returns {Void}
+ * @example <caption>Enable auto-scrolling on a GUI post-show while keeping title bar pinned</caption>
+ * CustomTitleBar.Attach(myGui)
+ * myGui.Show("xCenter yCenter h300")
+ * EnableAutoScroll(myGui, 40)
+ */
+EnableAutoVerticalScroll(guiObj, scrollSpeed := 50, maxScreenRatio := 1.0) {
+    guiObj.GetPos(, , , &winH)
+    guiObj.GetClientPos(, , , &clientH)
+
+    controls := []
+    contentHeight := 0
+    for ctrl in guiObj {
+        ctrl.GetPos(&x, &y, , &h)
+        
+        if (y + h > contentHeight)
+            contentHeight := y + h
+            
+        if (HasProp(ctrl, "noScroll") && ctrl.noScroll)
+            continue
+            
+        controls.Push({ ctrl: ctrl, origX: x, origY: y })
+    }
+    contentHeight += 20
+
+    MonitorGetWorkArea(1, , , , &workAreaBottom)
+    maxAllowedHeight := Integer(workAreaBottom * maxScreenRatio)
+
+    if (winH > maxAllowedHeight) {
+        guiObj.Move(, , , maxAllowedHeight)
+        guiObj.GetClientPos(, , , &clientH)
+    }
+
+    maxScroll := contentHeight - clientH
+    if (maxScroll <= 0)
+        return
+
+    currentScroll := 0
+
+    ; Centralized Cleanup Helper
+    CleanClose(*) {
+        if IsSet(MessageManager) {
+            MessageManager.Unregister(0x020A, OnMouseWheel)
+            MessageManager.Unregister(0x0082, OnNCDestroy)
+        } else {
+            OnMessage(0x020A, OnMouseWheel, 0)
+            OnMessage(0x0082, OnNCDestroy, 0)
+        }
+    }
+
+    OnMouseWheel(wParam, lParam, msg, hwnd) {
+        try {
+            guiHwnd := guiObj.Hwnd
+        } catch {
+            CleanClose()
+            return
+        }
+
+        if (hwnd != guiHwnd && !DllCall("IsChild", "Ptr", guiHwnd, "Ptr", hwnd))
+            return
+
+        delta := (wParam >> 16) & 0xFFFF
+        direction := (delta & 0x8000) ? 1 : -1
+        
+        newScroll := Min(maxScroll, Max(0, currentScroll + (direction * scrollSpeed)))
+
+        if (newScroll != currentScroll) {
+            currentScroll := newScroll
+            
+            DllCall("SendMessage", "Ptr", guiHwnd, "UInt", 0x000B, "Ptr", 0, "Ptr", 0)
+            
+            for item in controls {
+                item.ctrl.Move(item.origX, item.origY - currentScroll)
+            }
+            
+            DllCall("SendMessage", "Ptr", guiHwnd, "UInt", 0x000B, "Ptr", 1, "Ptr", 0)
+            WinRedraw(guiObj)
+        }
+    }
+
+    OnNCDestroy(wParam, lParam, msg, hwnd) {
+        try {
+            if (hwnd == guiObj.Hwnd)
+                CleanClose()
+        } catch {
+            CleanClose()
+        }
+    }
+
+    ; Bind events & message hooks
+    guiObj.OnEvent("Close", (*) => CleanClose())
+
+    if IsSet(MessageManager) {
+        MessageManager.Register(0x0082, OnNCDestroy)
+        MessageManager.Register(0x020A, OnMouseWheel)
+    } else {
+        OnMessage(0x0082, OnNCDestroy)
+        OnMessage(0x020A, OnMouseWheel)
+    }
+}
+
+/**
+ * @description {@link ApplyHDRFontQuality|_HelperFuncs.ahk}
+ * Applies Standard/Monochrome quality (Quality 3) for texts instead of ClearType
+ * if HDR is enabled
+ * @param {GuiObj} [myGui]
+ * The GUI to apply q3
+* @returns {Void}
+ */
+ApplyHDRFontQuality(myGui) {
+;    if !IsHDREnabled()
+;        return
+	if !(IsSet(General) && General.HasOwnProp("HDR") && (General.HDR == 1)) {
+		return
+	}
+
+    for hwnd, ctrl in myGui {
+        try {
+            ctrl.SetFont("q3")
+        }
     }
 }

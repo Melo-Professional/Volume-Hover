@@ -1,43 +1,9 @@
 /************************************************************************
  * @description Modern Slider for AutoHotKey v2
  * @author Melo
- * @date 2026/08/01
- * @version 3.0.4 (fix stain and 4k monitor)
+ * @date 2026/09/02
+ * @version 3.0.7 (Precision DPI vertical alignment fix)
  ***********************************************************************/
-
-/* 
-; EXAMPLE
-myGui := Gui("+AlwaysOnTop", "Modern Themed Sliders")
-myGui.SetFont("s10", "Segoe UI")
-
-; --- Custom Color Palettes ---
-; Format: [TrackActiveColor, TrackBgColor, ThumbColor]
-lightPalette := ["0078D7", "58E0E0E0", "0078D7"] ; Windows Blue theme
-lightPalette := ["0078D7", "2fff0000", "0078D7"] ; Windows Blue theme
-darkPalette  := ["6BA4FF", "58333333", "6BA4FF"] ; High-contrast Soft Blue
-
-; --- Slider 1: Light Mode Forced ---
-myGui.Add("Text", "x20 y15 w200 h20", "Forced Light Mode")
-s1 := ModernSlider(myGui, "x20 y35 w300 h40", 30, 0, 100, (v,*)=>t1.Value:=v "%", "Light", lightPalette, darkPalette)
-t1 := myGui.Add("Text", "x330 y43 w50", "30%")
-
-; --- Slider 2: Dark Mode Forced ---
-myGui.Add("Text", "x20 y80 w200 h20", "Forced Dark Mode")
-s2 := ModernSlider(myGui, "x20 y100 w300 h40", 70, 0, 100, (v,*)=>t2.Value:=v "%", "Dark")
-t2 := myGui.Add("Text", "x330 y108 w50", "70%")
-
-; --- Slider 3: Auto Mode (Follows Windows OS Theme) ---
-myGui.Add("Text", "x20 y145 w200 h20", "Auto Theme (Follows Windows)")
-;s3 := ModernSlider(myGui, "x20 y165 w300 h40", 50, 0, 200, (v,*)=>t3.Value:=v "%")
-t3 := myGui.Add("Text", "x330 y173 w50", "50%")
-s3 := ModernSlider(myGui, "x20 y165 w300 h40", 50, 0, 200, OnSliderChange.Bind(t3))
-
-OnSliderChange(lbl, newVal, *) {
-    lbl.Text := newVal
-}
-F2::myGui.Show("w400 h230")
- */
-
 
 #Requires AutoHotkey v2.0
 #DllLoad "gdiplus"
@@ -117,11 +83,11 @@ class ModernSlider {
         NumPut("Int", x + w + pad, this.rectBuffer, 8)
         NumPut("Int", y + h + pad, this.rectBuffer, 12)
 
-        ; Create standard transparent Picture control (100% compatible with transparent designs)
+        ; Create standard transparent Picture control
         this.sliderCtrl := guiObj.Add("Pic", "x" x " y" y " w" w " h" h " -Border -E0x200 +BackgroundTrans +0xE")
         this.hwnd := this.sliderCtrl.hwnd 
         
-        ; Explicitly strip native borders to guarantee layout integration
+        ; Explicitly strip native borders
         try {
             style := DllCall("user32\GetWindowLong", "Ptr", this.hwnd, "Int", -16, "UInt")
             DllCall("user32\SetWindowLong", "Ptr", this.hwnd, "Int", -16, "UInt", style & ~0x00800000) ; -WS_BORDER
@@ -191,6 +157,26 @@ class ModernSlider {
         }
     }
 
+    GetPhysicalSize(&w, &h) {
+        rect := Buffer(16, 0)
+        DllCall("user32\GetClientRect", "Ptr", this.hwnd, "Ptr", rect)
+        w := NumGet(rect, 8, "Int")
+        h := NumGet(rect, 12, "Int")
+        if (w <= 0 || h <= 0) {
+            w := this.ctrlW
+            h := this.ctrlH
+        }
+    }
+
+    GetDpiScale() {
+        try {
+            dpi := DllCall("user32\GetDpiForWindow", "Ptr", this.hwnd, "UInt")
+            if (dpi > 0)
+                return dpi / 96.0
+        }
+        return 1.0
+    }
+
     SetControlBitmap(hBitmap) {
         if (!this.hwnd || !DllCall("user32\IsWindow", "Ptr", this.hwnd, "Int"))
             return
@@ -200,7 +186,6 @@ class ModernSlider {
             DllCall("gdi32\DeleteObject", "Ptr", hOld)
         }
 
-        ; Map physical bounding box of the control to parent window for repainting
         rect := Buffer(16, 0)
         DllCall("user32\GetWindowRect", "Ptr", this.hwnd, "Ptr", rect)
         DllCall("user32\MapWindowPoints", "Ptr", 0, "Ptr", this.guiObj.Hwnd, "Ptr", rect, "UInt", 2)
@@ -210,27 +195,31 @@ class ModernSlider {
     }
 
     RenderSliderBitmap() {
-        w := this.ctrlW, h := this.ctrlH
+        this.GetPhysicalSize(&w, &h)
+        dpiScale := this.GetDpiScale()
+
         pct := (this._value - this.min) / (this.max - this.min)
         colors := this.GetActiveColors()
         
         DllCall("gdiplus\GdipCreateBitmapFromScan0", "Int", w, "Int", h, "Int", 0, "Int", 0x26200A, "Ptr", 0, "Ptr*", &pBitmap:=0)
-        
         DllCall("gdiplus\GdipGetImageGraphicsContext", "Ptr", pBitmap, "Ptr*", &pGraphics:=0)
         DllCall("gdiplus\GdipSetSmoothingMode", "Ptr", pGraphics, "Int", 4)
-        
-        ; Clear canvas with absolute alpha transparency (0)
         DllCall("gdiplus\GdipGraphicsClear", "Ptr", pGraphics, "Int", 0)
         
-        trackW := w - (this.paddingX * 2)
-        trackY := h / 2
-        xStart := this.paddingX
-        xEnd := this.paddingX + trackW
+        scaledPaddingX := this.paddingX * dpiScale
+        trackW := w - (scaledPaddingX * 2)
+        
+        ; Precise vertical line alignment matching AHK text control baselines
+        trackY := (h / 2.0) - (0.5 * (dpiScale - 1.0))
+        xStart := scaledPaddingX
+        xEnd := scaledPaddingX + trackW
+        
+        scaledTrackH := this.trackH * dpiScale
         
         ; --- 1. Draw Track Background ---
         trackBgCol := (StrLen(colors[2]) == 8) ? Integer("0x" colors[2]) : (0xFF000000 | Integer("0x" colors[2]))
-        DllCall("gdiplus\GdipCreatePen1", "UInt", trackBgCol, "Float", this.trackH, "Int", 2, "Ptr*", &pPenBg:=0)
-        DllCall("gdiplus\GdipSetPenStartCap", "Ptr", pPenBg, "Int", 2) ; LineCapRound := 2
+        DllCall("gdiplus\GdipCreatePen1", "UInt", trackBgCol, "Float", scaledTrackH, "Int", 2, "Ptr*", &pPenBg:=0)
+        DllCall("gdiplus\GdipSetPenStartCap", "Ptr", pPenBg, "Int", 2) 
         DllCall("gdiplus\GdipSetPenEndCap", "Ptr", pPenBg, "Int", 2)
         DllCall("gdiplus\GdipDrawLine", "Ptr", pGraphics, "Ptr", pPenBg, "Float", xStart, "Float", trackY, "Float", xEnd, "Float", trackY)
         DllCall("gdiplus\GdipDeletePen", "Ptr", pPenBg)
@@ -239,7 +228,7 @@ class ModernSlider {
         activeW := Round(pct * trackW)
         if (activeW > 0) {
             trackActiveCol := (StrLen(colors[1]) == 8) ? Integer("0x" colors[1]) : (0xFF000000 | Integer("0x" colors[1]))
-            DllCall("gdiplus\GdipCreatePen1", "UInt", trackActiveCol, "Float", this.trackH, "Int", 2, "Ptr*", &pPenActive:=0)
+            DllCall("gdiplus\GdipCreatePen1", "UInt", trackActiveCol, "Float", scaledTrackH, "Int", 2, "Ptr*", &pPenActive:=0)
             DllCall("gdiplus\GdipSetPenStartCap", "Ptr", pPenActive, "Int", 2)
             DllCall("gdiplus\GdipSetPenEndCap", "Ptr", pPenActive, "Int", 2)
             DllCall("gdiplus\GdipDrawLine", "Ptr", pGraphics, "Ptr", pPenActive, "Float", xStart, "Float", trackY, "Float", xStart + activeW, "Float", trackY)
@@ -247,14 +236,15 @@ class ModernSlider {
         }
         
         ; --- 3. Draw Thumb ---
-        thumbSize := (this.isHovered || this.isDragging) ? (this.thumbSize * 1.2) : this.thumbSize
+        baseThumbSize := (this.isHovered || this.isDragging) ? (this.thumbSize * 1.2) : this.thumbSize
+        thumbSize := baseThumbSize * dpiScale
         thumbColorHex := (this.isHovered || this.isDragging) ? colors[1] : colors[3]
         thumbColor := (StrLen(thumbColorHex) == 8) ? Integer("0x" thumbColorHex) : (0xFF000000 | Integer("0x" thumbColorHex))
         
-        thumbCenterX := this.paddingX + (pct * trackW)
-        thumbCenterY := h / 2
-        thumbLeft := thumbCenterX - (thumbSize / 2)
-        thumbTop := thumbCenterY - (thumbSize / 2)
+        thumbCenterX := scaledPaddingX + (pct * trackW)
+        thumbCenterY := trackY
+        thumbLeft := thumbCenterX - (thumbSize / 2.0)
+        thumbTop := thumbCenterY - (thumbSize / 2.0)
         
         DllCall("gdiplus\GdipCreateSolidFill", "Int", thumbColor, "Ptr*", &pBrushThumb:=0)
         DllCall("gdiplus\GdipFillEllipse", "Ptr", pGraphics, "Ptr", pBrushThumb, "Float", thumbLeft, "Float", thumbTop, "Float", thumbSize, "Float", thumbSize)
@@ -299,17 +289,20 @@ class ModernSlider {
                 }
 
                 instance.GetLocalMousePos(&mx, &my)
+                instance.GetPhysicalSize(&pw, &ph)
+                dpiScale := instance.GetDpiScale()
                 
+                scaledPaddingX := instance.paddingX * dpiScale
                 pct := (instance._value - instance.min) / (instance.max - instance.min)
-                trackW := instance.ctrlW - (instance.paddingX * 2)
-                thumbCenterX := instance.paddingX + (pct * trackW)
-                thumbCenterY := instance.ctrlH / 2
+                trackW := pw - (scaledPaddingX * 2)
+                thumbCenterX := scaledPaddingX + (pct * trackW)
+                thumbCenterY := (ph / 2.0) - (0.5 * (dpiScale - 1.0))
                 
                 dx := mx - thumbCenterX
                 dy := my - thumbCenterY
                 distance := Sqrt(dx*dx + dy*dy)
                 
-                isOverThumb := (distance <= 14)
+                isOverThumb := (distance <= (14 * dpiScale))
                 
                 if (isOverThumb != instance.isHovered && !instance.isDragging) {
                     instance.isHovered := isOverThumb
@@ -371,10 +364,13 @@ class ModernSlider {
     }
 
     IsMouseOverSlider(mx, my, padding := 10) {
-        return (mx >= -padding
-             && mx <= this.ctrlW + padding 
-             && my >= -padding 
-             && my <= this.ctrlH + padding)
+        this.GetPhysicalSize(&pw, &ph)
+        dpiScale := this.GetDpiScale()
+        scaledPad := padding * dpiScale
+        return (mx >= -scaledPad
+             && mx <= pw + scaledPad 
+             && my >= -scaledPad 
+             && my <= ph + scaledPad)
     }
 
     OnDrag() {
@@ -385,9 +381,12 @@ class ModernSlider {
                 break
 
             this.GetLocalMousePos(&mx, &my)
+            this.GetPhysicalSize(&pw, &ph)
+            dpiScale := this.GetDpiScale()
             
-            trackW := this.ctrlW - (this.paddingX * 2)
-            pct := (mx - this.paddingX) / trackW
+            scaledPaddingX := this.paddingX * dpiScale
+            trackW := pw - (scaledPaddingX * 2)
+            pct := (mx - scaledPaddingX) / trackW
             pct := pct < 0 ? 0 : (pct > 1 ? 1 : pct)
             
             newValue := Round(this.min + (pct * (this.max - this.min)))
@@ -401,11 +400,15 @@ class ModernSlider {
         this.isDragging := false
         
         this.GetLocalMousePos(&mx, &my)
+        this.GetPhysicalSize(&pw, &ph)
+        dpiScale := this.GetDpiScale()
+        scaledPaddingX := this.paddingX * dpiScale
+        
         pct := (this._value - this.min) / (this.max - this.min)
-        trackW := this.ctrlW - (this.paddingX * 2)
-        thumbCenterX := this.paddingX + (pct * trackW)
-        thumbCenterY := this.ctrlH / 2
-        this.isHovered := (Sqrt((mx - thumbCenterX)**2 + (my - thumbCenterY)**2) <= 14)
+        trackW := pw - (scaledPaddingX * 2)
+        thumbCenterX := scaledPaddingX + (pct * trackW)
+        thumbCenterY := (ph / 2.0) - (0.5 * (dpiScale - 1.0))
+        this.isHovered := (Sqrt((mx - thumbCenterX)**2 + (my - thumbCenterY)**2) <= (14 * dpiScale))
         
         this.UpdatePosition(false)
     }
@@ -415,8 +418,12 @@ class ModernSlider {
         if (this.IsHwndTarget(hwnd)) {
             this.GetLocalMousePos(&mx, &my)
             if (this.IsMouseOverSlider(mx, my, 2)) {
-                trackW := this.ctrlW - (this.paddingX * 2)
-                pct := (mx - this.paddingX) / trackW
+                this.GetPhysicalSize(&pw, &ph)
+                dpiScale := this.GetDpiScale()
+                scaledPaddingX := this.paddingX * dpiScale
+                
+                trackW := pw - (scaledPaddingX * 2)
+                pct := (mx - scaledPaddingX) / trackW
                 pct := pct < 0 ? 0 : (pct > 1 ? 1 : pct)
                 this.SetValue(Round(this.min + (pct * (this.max - this.min))), true)
                 this.OnDrag()
@@ -453,18 +460,13 @@ class ModernSlider {
         if (this.IsHwndTarget(hwnd)) {
             this.GetLocalMousePos(&mx, &my)
             if (this.IsMouseOverSlider(mx, my, 5)) { 
-                ; Extract standard signed 16-bit scroll wheel delta
                 delta := (wParam >> 16) & 0xFFFF
                 if (delta > 0x7FFF)
                     delta -= 0x10000
                 
-                ; Dynamically step size depending on total range depth
                 stepSize := (this.max - this.min) > 20 ? 2 : 1
-                
-                ; Scale actual steps relative to a standard wheel tick (120 units)
                 actualSteps := Round((delta / 120) * stepSize)
                 
-                ; Safety fallback for ultra-precise micro-ticks (assures physical movement)
                 if (actualSteps == 0 && delta != 0) {
                     actualSteps := delta > 0 ? 1 : -1
                 }
@@ -487,6 +489,6 @@ class ModernSlider {
 
     Value {
         get => this._value
-        set => this.SetValue(value, false) ; Programmatic modifications NEVER trigger the callback loop
+        set => this.SetValue(value, false)
     }
 }

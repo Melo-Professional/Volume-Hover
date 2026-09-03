@@ -1,8 +1,8 @@
 /************************************************************************
  * @description Automatic Backup and Compilation Manager for AHK v2.
  * @author Melo (melo@meloprofessional.com) and Pj
- * @date 2026/08/18
- * @version 1.7.0
+ * @date 2026/08/26
+ * @version 1.8.0 (Backup \lib\subfolders if Included)
  * 
  * FEATURES:
  * - Creates an isolated '.versions\' directory automatically inside A_ScriptDir.
@@ -170,26 +170,38 @@ Backup() {
                 if RegExMatch(A_LoopField, "i)^\s*#Include\s+(?:\*i\s+)?<?([^>\s]+)>?", &match) {
                     includePath := match[1]
                     
-                    ; Append .ahk extension if omitted
-                    if !(includePath ~= "\.[a-zA-Z0-9]+$") {
-                        includePath .= ".ahk"
-                    }
-                    
                     ; Strip lead "lib\" or "lib/" if explicitly declared in the #Include
                     relLibPath := RegExReplace(includePath, "i)^lib[/\\]", "")
                     
-                    ; Resolve full path inside source lib folder
+                    ; Check if the #Include points directly to an entire subfolder
+                    sourceDir := A_ScriptDir "\lib\" relLibPath
+                    destDir   := targetDir "\lib\" relLibPath
+                    if DirExist(sourceDir) {
+                        DirCopy(sourceDir, destDir, 1)
+                        continue
+                    }
+
+                    ; If it's a file path, resolve its full extension
+                    if !(relLibPath ~= "\.[a-zA-Z0-9]+$") {
+                        relLibPath .= ".ahk"
+                    }
+
                     sourceFile := A_ScriptDir "\lib\" relLibPath
-                    
+                    destFile   := targetDir "\lib\" relLibPath
+
                     if FileExist(sourceFile) {
-                        destFile := targetDir "\lib\" relLibPath
-                        
-                        ; Ensure subfolders exist inside destination before copying
-                        SplitPath(destFile, , &destDir)
-                        if !DirExist(destDir)
-                            DirCreate(destDir)
-                            
-                        FileCopy(sourceFile, destFile, 1)
+                        ; If the file lives in a subfolder (e.g. WinRT\winrt.ahk), 
+                        ; copy the entire parent folder recursively.
+                        if InStr(relLibPath, "\") || InStr(relLibPath, "/") {
+                            parentSubFolder := RegExReplace(relLibPath, "[/\\].*$", "")
+                            DirCopy(A_ScriptDir "\lib\" parentSubFolder, targetDir "\lib\" parentSubFolder, 1)
+                        } else {
+                            ; Top-level lib file (e.g., lib\MyFunc.ahk)
+                            SplitPath(destFile, , &outDir)
+                            if !DirExist(outDir)
+                                DirCreate(outDir)
+                            FileCopy(sourceFile, destFile, 1)
+                        }
                     }
                 }
             }

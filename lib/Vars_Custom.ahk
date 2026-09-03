@@ -40,6 +40,8 @@ Global General := {
     KeyDown: "^#F11",
     MouseUp: "^#WheelUp",
     MouseDown: "^#WheelDown",
+    TaskbarUp: "WheelUp",
+    TaskbarDown: "WheelDown",
 }
 ResetGeneral        := General.Clone()
 
@@ -51,7 +53,8 @@ SaveToINI := []
 ;SaveToINI.Push("Settings.SplashScreen")     ; add more to INI file
 SaveToINI.Push(
     "General.PlaybackDevices", "General.UseOSD", "General.OSDMonitor", "General.OSDPosition",
-    "General.KeyUp", "General.KeyDown", "General.MouseUp", "General.MouseDown"
+    "General.KeyUp", "General.KeyDown", "General.MouseUp", "General.MouseDown",
+	"General.TaskbarUp", "General.TaskbarDown"
     )     ; add more to INI file
 
 if App.HasOwnProp("GitHubRepo")

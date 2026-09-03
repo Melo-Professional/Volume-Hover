@@ -3,14 +3,14 @@
 /************************************************************************
  * @description Controls application audio volumes instantly by hovering over the Windows system tray icon.
  * @author Melo (melo@meloprofessional.com)
- * @date 2026/08/21
+ * @date 2026/09/03
  * @releasedate 2026/07/07
- * @version 1.6.6.103
+ * @version 1.7.3.4
  ***********************************************************************/
 
 AppName := "Volume Hover"
 ;@Ahk2Exe-Let U_AppName = %A_PriorLine%
-AppVersion := "1.6.6.103"
+AppVersion := "1.7.3.4"
 ;@Ahk2Exe-Let U_Version = %A_PriorLine%
 AppDescription := "Controls application audio volumes instantly by hovering over the Windows system tray icon."
 ;@Ahk2Exe-AddResource .\resources\keyboard.ico, 209
@@ -21,7 +21,7 @@ AppDescription := "Controls application audio volumes instantly by hovering over
 
 ;@endregion
 
-;_bkpMode := "AppVersionAndMinutes"
+_bkpMode := "AppVersionAndMinutes"
 
 ;@region Directives
 #Requires AutoHotkey v2.0
@@ -71,6 +71,7 @@ A_HotkeyInterval := 1000
 #Include <AppVolumeControl>
 #Include <SelectPlaybackDevicesGUI>
 #Include <MixerGui>
+#Include <UIA>
 ;@endregion
 
 ;@region Startup
@@ -96,14 +97,6 @@ IsSet(StartAutoUpdater) ? StartAutoUpdater() : 0
 ; Initialize system hooks and GUI setup
 CreateAudioMixerGui()
 
-; HOTKEYS
-AppVolumeControl.Init({
-    Step: 5,
-    MouseUp: General.MouseUp,
-    MouseDown: General.MouseDown,
-    KeyUp: General.KeyUp,
-    KeyDown: General.KeyDown
-})
 
 VolUp_ActiveWin(newHotkey := "", isGuiUpdate := false) {
     if (isGuiUpdate) {
@@ -151,13 +144,24 @@ VolDown_HoverWin(newHotkey := "", isGuiUpdate := false) {
 
 ; Instantiate the TrayIconHandler
 global TrayHandler := TrayIconHandler()
-TrayHandler.HoverDelay := 1000
+;TrayHandler.HoverDelay := 1000
 TrayHandler.OnRightClick		:= (*) => ShowTrayMenu()
 TrayHandler.OnHover			    := (*) => ShowMixerGuiNow()
 TrayHandler.OnLeftClick			:= (*) => ShowMixerGuiNow()
 TrayHandler.OnLeave				:= (*) => ResetHoverFlags()
 TrayHandler.OnWheelUp			:= (*) => AdjustTargetAppVolume(5)
 TrayHandler.OnWheelDown			:= (*) => AdjustTargetAppVolume(-5)
+
+; HOTKEYS
+AppVolumeControl.Init({
+    Step:				5,
+    MouseUp:			General.MouseUp,
+    MouseDown:			General.MouseDown,
+    KeyUp:				General.KeyUp,
+    KeyDown:			General.KeyDown,
+    TaskbarUp:			General.TaskbarUp,
+    TaskbarDown:		General.TaskbarDown
+})
 
 
 OnExit Cleanup

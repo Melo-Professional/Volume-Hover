@@ -1,6 +1,6 @@
 /************************************************************************
  * @description OSDCustom (Dynamic Styling & Multi-Column Grid Engine)
- * @version 6.21.0 (Mouse Position and Rounded Corners fix, progressbar marquee)
+ * @version 6.24.0 (Support for ico and resource HBITMAP images)
  ***********************************************************************/
 
 #Requires AutoHotkey v2.0
@@ -24,7 +24,7 @@ class OSDCustom {
     static FontSize := 11
     static TimeOut := 1800
     static Speed := 4
-    static Position := "x0.50 y0.50" ; options: "x<Percentage> y<Percentage>" | "mouse" for current mouse position
+    static Position := "x0.50 y0.50" ; options: "x-300 y500" (absolute coordinates accepting negative values) || "x0.5 y0.5" (between 0 and 1 for percentage of the monitor) || "mouse" for current mouse position
     static SlideDistance := 30
     static FontName := "Segoe UI"
     static FontWeight := 400
@@ -129,8 +129,11 @@ class OSDCustom {
  */
 
     SetCellImage(col, row, imagePath, alignment := "Center", targetHeight := 54, colSpan := 1, rowSpan := 1) {
-        if (!FileExist(imagePath))
-            throw Error("Image file not found: " imagePath)
+        if (!InStr(imagePath, "HBITMAP:")) {
+            cleanPath := RegExReplace(imagePath, ",\s*-?\d+$", "")
+            if (!FileExist(cleanPath))
+                throw Error("Image file or resource not found: " cleanPath)
+        }
 
         imageObj := { Type: "Image", Col: col, Row: row, Path: imagePath, TargetH: targetHeight, Align: alignment, Style: "", ColSpan: colSpan, RowSpan: rowSpan }
         this.Cells.Push(imageObj)
@@ -244,6 +247,59 @@ class OSDCustom {
     OnSettingChange(wParam, lParam, msg, hwnd) {
         if (StrLower(this.Theme) == "auto" && this.InternalState == "Ready")
             try this.ApplyThemeColors()
+    }
+
+	static ResolveResource(imagePath) {
+        if RegExMatch(imagePath, "^(.*?),\s*(-?\d+)$", &m) {
+            cleanPath := Trim(m[1])
+            resID := Abs(Integer(m[2]))
+
+            isCurrentExe := (cleanPath == "" || StrLower(cleanPath) == StrLower(A_ScriptFullPath) || StrLower(cleanPath) == StrLower(A_ScriptName))
+            
+            hModule := 0
+            needFree := false
+            
+            if (isCurrentExe) {
+                hModule := DllCall("GetModuleHandle", "Ptr", 0, "Ptr")
+            } else if FileExist(cleanPath) {
+                hModule := DllCall("LoadLibraryEx", "Str", cleanPath, "Ptr", 0, "UInt", 2, "Ptr") ; LOAD_LIBRARY_AS_DATAFILE
+                needFree := true
+            }
+
+            if (hModule) {
+                ; Search for RT_RCDATA (Type 10) for PNGs embedded via AddResource
+                hRes := DllCall("FindResource", "Ptr", hModule, "Ptr", resID, "Ptr", 10, "Ptr")
+                if (hRes) {
+                    hData := DllCall("LoadResource", "Ptr", hModule, "Ptr", hRes, "Ptr")
+                    pData := DllCall("LockResource", "Ptr", hData, "Ptr")
+                    sz := DllCall("SizeofResource", "Ptr", hModule, "Ptr", hRes, "UInt")
+
+                    if (pData && sz) {
+                        pStream := DllCall("shlwapi\SHCreateMemStream", "Ptr", pData, "UInt", sz, "Ptr")
+                        if (pStream) {
+                            pBitmap := 0
+                            DllCall("gdiplus\GdipCreateBitmapFromStream", "Ptr", pStream, "Ptr*", &pBitmap)
+                            ObjRelease(pStream)
+
+                            if (pBitmap) {
+                                hBitmap := 0
+                                DllCall("gdiplus\GdipCreateHBITMAPFromBitmap", "Ptr", pBitmap, "Ptr*", &hBitmap, "UInt", 0xFF000000)
+                                DllCall("gdiplus\GdipDisposeImage", "Ptr", pBitmap)
+
+                                if (needFree)
+                                    DllCall("FreeLibrary", "Ptr", hModule)
+
+                                return { Type: "BitmapHandle", Value: "HBITMAP:" hBitmap }
+                            }
+                        }
+                    }
+                }
+                if (needFree)
+                    DllCall("FreeLibrary", "Ptr", hModule)
+            }
+            return { Type: "IconResource", Path: cleanPath, Index: m[2] }
+        }
+        return { Type: "File", Value: imagePath }
     }
 
     ; --- Main Show method ---
@@ -511,11 +567,25 @@ class OSDCustom {
                     imgX := cellX + cellW - cell.ComputedW
                 }
                 imgY := cellY + (cellH - cell.ComputedH) / 2
+                
                 if (cell.ComputedW > 0 && cell.ComputedH > 0) {
-                    try ctrl := this.MyGui.AddPic("x" imgX " y" imgY " w" cell.ComputedW " h" cell.ComputedH " +BackgroundTrans", cell.Path)
-                    this.CellCtrls[idx] := ctrl
-                }
+                    picOpts := "x" imgX " y" imgY " w" cell.ComputedW " h" cell.ComputedH " +BackgroundTrans"
+                    
+                    res := OSDCustom.ResolveResource(cell.Path)
+                    if (res.Type == "BitmapHandle") {
+                        picPath := res.Value
+                    } else if (res.Type == "IconResource") {
+                        picOpts .= " Icon" res.Index
+                        picPath := res.Path
+                    } else {
+                        picPath := res.Value
+                    }
 
+                    try {
+                        ctrl := this.MyGui.AddPic(picOpts, picPath)
+                        this.CellCtrls[idx] := ctrl
+                    }
+                }
             } else if (cell.Type == "Progress") {
                 pMin := cell.HasProp("Min") ? cell.Min : 0
                 pMax := cell.HasProp("Max") ? cell.Max : this.ProgressMaxValue
@@ -619,9 +689,8 @@ class OSDCustom {
 
         monLeft := 0, monTop := 0, monRight := 0, monBottom := 0
         targetMonIndex := 1
-
-        ; Ensure mouse position uses absolute screen coordinates
-        CoordMode("Mouse", "Screen")
+		isAbsoluteX := false
+        isAbsoluteY := false
 
         ; Check if Position is explicitly set to "Mouse"
         if (StrLower(Position) == "mouse") {
@@ -652,15 +721,42 @@ class OSDCustom {
         monWidth := monRight - monLeft
         monHeight := monBottom - monTop
 
-        ; Only calculate default/ratio targetX/Y if Position wasn't "Mouse"
         if (StrLower(Position) != "mouse") {
             targetX := monLeft + (monWidth * 0.5)
             targetY := monTop + (monHeight * 0.5)
-            if RegExMatch(Position, "i)x([\d\.]+)", &matchX) {
-                targetX := monLeft + (monWidth * Float(matchX[1]))
+
+            if RegExMatch(Position, "i)x([-\d\.]+)", &matchX) {
+                valX := Float(matchX[1])
+                if (valX >= 0 && valX <= 1) {
+                    targetX := monLeft + (monWidth * valX)
+                } else {
+                    targetX := valX
+                    isAbsoluteX := true
+                }
             }
-            if RegExMatch(Position, "i)y([\d\.]+)", &matchY) {
-                targetY := monTop + (monHeight * Float(matchY[1]))
+
+            if RegExMatch(Position, "i)y([-\d\.]+)", &matchY) {
+                valY := Float(matchY[1])
+                if (valY >= 0 && valY <= 1) {
+                    targetY := monTop + (monHeight * valY)
+                } else {
+                    targetY := valY
+                    isAbsoluteY := true
+                }
+            }
+
+            ; --- If absolute coordinates were given, locate the correct monitor for bounds/animations ---
+            if (isAbsoluteX || isAbsoluteY) {
+                loop MonitorGetCount() {
+                    MonitorGet(A_Index, &mLeft, &mTop, &mRight, &mBottom)
+                    if (targetX >= mLeft && targetX < mRight && targetY >= mTop && targetY < mBottom) {
+                        targetMonIndex := A_Index
+                        monLeft := mLeft, monTop := mTop, monRight := mRight, monBottom := mBottom
+                        monWidth := monRight - monLeft
+                        monHeight := monBottom - monTop
+                        break
+                    }
+                }
             }
         }
 
@@ -668,8 +764,19 @@ class OSDCustom {
         scaledSlide := OSDCustom.DPIScale(this.SlideDistance)
         this.ActualSpeed := OSDCustom.DPIScale(this.Speed)
 
-        this.PosX := Max(monLeft, Min(targetX - Integer(guiWidth / 2), monRight - guiWidth))
-        this.FinalY := Max(monTop, Min(targetY - Integer(guiHeight / 2), monBottom - guiHeight))
+        ; --- Only clamp if using relative percentages; allow absolute coords to escape boundaries ---
+		if (isAbsoluteX) {
+            this.PosX := Integer(targetX - (guiWidth / 2))
+        } else {
+            this.PosX := Max(monLeft, Min(targetX - Integer(guiWidth / 2), monRight - guiWidth))
+        }
+
+        if (isAbsoluteY) {
+            this.FinalY := Integer(targetY - (guiHeight / 2))
+        } else {
+            this.FinalY := Max(monTop, Min(targetY - Integer(guiHeight / 2), monBottom - guiHeight))
+        }
+
         this.IsBottomHalf := (this.FinalY >= (monTop + (monHeight / 2) - guiHeight / 2))
         this.StartY := this.IsBottomHalf ? (this.FinalY + scaledSlide) : (this.FinalY - scaledSlide)
         this.AlphaStep := (scaledSlide > 0) ? (this.Opacity / (scaledSlide / this.ActualSpeed)) : this.Opacity
@@ -773,8 +880,12 @@ class OSDCustom {
     UpdateImageObject(imageObj, newImagePath, TimeOut := "") {
         if (this.InternalState != "Ready")
             return
-        if (!FileExist(newImagePath))
-            throw Error("Image file not found: " newImagePath)
+            
+        if (!InStr(newImagePath, "HBITMAP:")) {
+            cleanPath := RegExReplace(newImagePath, ",\s*-?\d+$", "")
+            if (!FileExist(cleanPath))
+                throw Error("Image file or resource not found: " cleanPath)
+        }
             
         imageObj.Path := newImagePath
         if (TimeOut == "")
@@ -786,7 +897,14 @@ class OSDCustom {
                     if (this.MyGui && this.CellCtrls.Has(idx) && (this.State == "Visible" || this.State == "SlidingIn")) {
                         SetTimer(this.DestroyCb, 0)
                         
-                        this.CellCtrls[idx].Value := newImagePath
+                        res := OSDCustom.ResolveResource(newImagePath)
+                        if (res.Type == "BitmapHandle") {
+                            this.CellCtrls[idx].Value := res.Value
+                        } else if (res.Type == "IconResource") {
+                            this.CellCtrls[idx].Value := "*Icon" res.Index " " res.Path
+                        } else {
+                            this.CellCtrls[idx].Value := res.Value
+                        }
                         
                         if (TimeOut > 0)
                             SetTimer(this.DestroyCb, -TimeOut)
@@ -932,6 +1050,9 @@ class OSDCustom {
     }
 
     GetImageDims(imagePath, targetH) {
+        if (InStr(imagePath, "HBITMAP:") || RegExMatch(imagePath, ",\s*-?\d+$"))
+            return { W: targetH, H: targetH }
+
         try {
             if (!OSDCustom.pToken)
                 return { W: targetH, H: targetH }
@@ -1416,5 +1537,36 @@ Global StateObj   := StatusOSD.SetCellText(3, 2, "SECURITY: LOCKED", "Left", { F
         StatusOSD.UpdateTextObject(StateObj, "SECURITY: LOCKED", 2000)
     }
 }
+
+
+; ------------------------------------------------------------------------------
+; 20260828 New example for icon images
+; ------------------------------------------------------------------------------
+; The minus sign doesnt really matter. The minus sign (-) is strictly an AutoHotkey directive for Icon IDs, while PNG detection happens dynamically by inspecting the compiled .exe resource table.
+; How the minus sign (-) works:
+; acomp.exe, 1 (Positive): Refers to the 1st icon group by sequential order.
+; acomp.exe, -207 (Negative): Refers specifically to Resource ID 207 for an .ico file.
+; How OSDCustom detects PNG vs. ICO:
+; ResolveResource() does not look at the minus sign to decide if a file is a PNG. Instead, it queries the Windows API at runtime:
+; Checks for RT_RCDATA (Type 10): It looks inside the .exe to see if a raw binary resource (like a PNG added via ;@Ahk2Exe-AddResource) exists at that ID number.
+; If Found: It extracts the binary stream, converts it via GDI+, and passes an HBITMAP: handle to the GUI.
+; If Not Found: It assumes the resource is a standard .ico group and passes the path and index directly to AHK's native Gui.AddPic(..., "Icon207") or Gui.AddPic(..., "Icon-207").
+; Because of this runtime check, both ;@Ahk2Exe-AddResource .\resources\play.png, 209 and ;@Ahk2Exe-AddResource .\resources\app_Pause.ico, 207 will resolve automatically without changing your code syntax.
+
+;@Ahk2Exe-AddResource .\resources\play.png, 209
+;@Ahk2Exe-AddResource .\resources\pause.ico, 210
+
+
+ImageA := A_IsCompiled ? A_ScriptFullPath ", 209" : A_ScriptDir ".\resources\play.png"
+ImageA := A_ScriptFullPath ", -209"
+ImageA := A_ScriptDir "\acomp.exe, 1"
+ImageA := A_ScriptDir "\acomp.exe, -207"
+ImageA := "E:\Users\Melo\Documents\GitHub\scripts\Scripts_Windows\_Test\ICON_OSDCustom\resources\app_Pause.ico"
+
+OSD := OSDCustom()
+OSD.SetCellImage(1, 1, ImageA,, 64)
+OSD.Show()
+
+
 
  */
