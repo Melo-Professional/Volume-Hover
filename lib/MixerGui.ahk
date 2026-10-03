@@ -253,15 +253,16 @@ RefreshSessionsForSelectedDevice() {
         scaledW := Floor(wWidth * scaleFactor)
         scaledH := Floor(newHeight * scaleFactor)
 
-        DllCall("User32\SetWindowPos", 
-            "Ptr", MainGui.Hwnd, 
-            "Ptr", 0, 
-            "Int", spawnX, 
-            "Int", spawnY, 
-            "Int", scaledW, "Int", scaledH, 
-            "UInt", 0x0010 | 0x0004
-        )
+		DllCall("User32\SetWindowPos", 
+			"Ptr", MainGui.Hwnd,                  ; hWnd: Window handle
+			"Ptr", 0,                             ; hWndInsertAfter: HWND_TOP (0) [Ignored due to SWP_NOZORDER]
+			"Int", spawnX, "Int", spawnY,         ; X, Y: New position coordinates
+			"Int", scaledW, "Int", scaledH,       ; cx, cy: New width and height
+			"UInt", 0x0010 | 0x0004               ; 0x0010 SWP_NOACTIVATE | 0x0004 SWP_NOZORDER
+		)
+
     } else {
+		; SW_HIDE
         DllCall("User32\ShowWindow", "Ptr", MainGui.Hwnd, "Int", 0)
     }
 }
@@ -346,10 +347,35 @@ ShowMixerGuiNow() {
 
 	MainGui.Show("x-99999 y-99999 w" 380 "h" CurrentGuiHeight " Hide NoActivate")
 	GuiAtTray(MainGui, TrayHandler, &spawnX, &spawnY, &w, &h)
+/* 
+	DllCall("User32\SetWindowPos", 
+		"Ptr", MainGui.Hwnd,                  ; hWnd: Window handle
+		"Ptr", 0,                             ; hWndInsertAfter: HWND_TOP (0) [Ignored due to SWP_NOZORDER]
+		"Int", spawnX, "Int", spawnY,         ; X, Y: New position coordinates
+		"Int", w, "Int", h,                   ; cx, cy: New width and height
+		"UInt", 0x0010 | 0x0004 | 0x0040      ; 0x0010 SWP_NOACTIVATE | 0x0004 SWP_NOZORDER | 0x0040 SWP_SHOWWINDOW
+	)
 
-    DllCall("User32\SetWindowPos", "Ptr", MainGui.Hwnd, "Ptr", 0, "Int", spawnX, "Int", spawnY, "Int", w, "Int", h, "UInt", 0x0014 | 0x0040)
     IsGuiVisible := true
-    DllCall("user32\SetWindowPos", "Ptr", MainGui.Hwnd, "Ptr", -1, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x0043)
+
+	DllCall("User32\SetWindowPos", 
+		"Ptr", MainGui.Hwnd,                  ; hWnd: Window handle
+		"Ptr", -1,                            ; hWndInsertAfter: HWND_TOPMOST (-1) [Always-On-Top]
+		"Int", 0, "Int", 0,                   ; X, Y: Position (Ignored due to SWP_NOMOVE)
+		"Int", 0, "Int", 0,                   ; cx, cy: Size (Ignored due to SWP_NOSIZE)
+		"UInt", 0x0001 | 0x0002 | 0x0040      ; 0x0001 SWP_NOSIZE | 0x0002 SWP_NOMOVE | 0x0040 SWP_SHOWWINDOW
+	)
+ */
+
+DllCall("User32\SetWindowPos", 
+    "Ptr", MainGui.Hwnd,                  ; hWnd: Window handle
+    "Ptr", -1,                            ; hWndInsertAfter: HWND_TOPMOST (-1) [Always-On-Top]
+    "Int", spawnX, "Int", spawnY,         ; X, Y: New position coordinates
+    "Int", w, "Int", h,                   ; cx, cy: New width and height
+    "UInt", 0x0010 | 0x0040               ; 0x0010 SWP_NOACTIVATE | 0x0040 SWP_SHOWWINDOW
+)
+
+
     ScheduleHide()
 }
 
@@ -364,16 +390,18 @@ HideAudioMixerGui() {
     
     if (MainGui != "" && WinExist(MainGui.Hwnd)) {
         ; Send window to coordinates outside visible boundaries without triggering structural focus signals
-        DllCall("User32\SetWindowPos", 
-            "Ptr", MainGui.Hwnd, 
-            "Ptr", 0, 
-            "Int", -32000, "Int", -32000, 
-            "Int", 0, "Int", 0, 
-            "UInt", 0x0010 | 0x0004 | 0x0001 ; SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOSIZE
-        )
-        
+		; 0x0010 SWP_NOACTIVATE | 0x0004 SWP_NOZORDER | 0x0001 SWP_NOSIZE
+		DllCall("User32\SetWindowPos", 
+			"Ptr", MainGui.Hwnd,                  ; hWnd: Window handle
+			"Ptr", 0,                             ; hWndInsertAfter: HWND_TOP (0) [Ignored due to SWP_NOZORDER]
+			"Int", -32000, "Int", -32000,         ; X, Y: New position coordinates (moves off-screen)
+			"Int", 0, "Int", 0,                   ; cx, cy: Size (Ignored due to SWP_NOSIZE)
+			"UInt", 0x0010 | 0x0004 | 0x0001      ; 0x0010 SWP_NOACTIVATE | 0x0004 SWP_NOZORDER | 0x0001 SWP_NOSIZE
+		)
+
         ; Execute standard background hiding operation completely focus-free
-        DllCall("User32\ShowWindow", "Ptr", MainGui.Hwnd, "Int", 0) ; SW_HIDE
+		; SW_HIDE
+        DllCall("User32\ShowWindow", "Ptr", MainGui.Hwnd, "Int", 0)
     }
 }
 

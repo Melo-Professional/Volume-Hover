@@ -1,8 +1,8 @@
 /************************************************************************
  * @description Handles tray icon events
  * @author Melo (melo@meloprofessional.com)
- * @date 2026/09/01
- * @version 1.2.7 (Renamed OnDoubleClick to OnLeftDoubleClick)
+ * @date 2026/09/11
+ * @version 1.2.9 (HoverDelay increased to 800)
  ***********************************************************************/
 
 #Requires AutoHotkey v2.0
@@ -62,7 +62,7 @@ class TrayIconHandler {
     _mbuttonActive := false
 
     ; --- Internal State Tracking ---
-    HoverDelay := 600
+    HoverDelay := 800
     LeaveDelay := 200  ; Time tolerance (ms) after leaving before triggering OnLeave
     HoverTimerActive := false
     PaddingBase := 2 ; Base padding before DPI scaling
@@ -267,6 +267,8 @@ class TrayIconHandler {
                     this.PendingLeftTimer := 0
                 }
                 this.IgnoreNextLeftUp := true  ; Suppress the 2nd WM_LBUTTONUP
+                ; Safety timeout: clear flag if Windows swallows the trailing WM_LBUTTONUP
+                SetTimer(() => (this.IgnoreNextLeftUp := false), -this.DoubleClickTime)
                 this.CallCallback(this.OnLeftDoubleClick, this)
                 return
             }
@@ -274,10 +276,19 @@ class TrayIconHandler {
             ; 2. Ignore 2nd WM_LBUTTONUP sent by OS during a double-click
             if (this.IgnoreNextLeftUp) {
                 this.IgnoreNextLeftUp := false
+                SetTimer(() => (this.IgnoreNextLeftUp := false), 0) ; Cancel safety timer
                 return
             }
 
-            ; 3. Single Click release (or 1st release of double click)
+            ; 3. Fallback: Software double-click check if OS missed 0x203
+            if (this.PendingLeftTimer != 0) {
+                SetTimer(this.PendingLeftTimer, 0)
+                this.PendingLeftTimer := 0
+                this.CallCallback(this.OnLeftDoubleClick, this)
+                return
+            }
+
+            ; 4. Single Click release (or 1st release of double click)
             if (HasMethod(this.OnLeftDoubleClick)) {
                 this.PendingLeftTimer := () => (
                     this.PendingLeftTimer := 0,
@@ -364,6 +375,7 @@ class TrayIconHandler {
             this.IsHovering := false
             this.IsMouseOver := false
             this.HoverTimerActive := false
+            this.IgnoreNextLeftUp := false  ; Clean leftover click states
             
             SetTimer(this.HoverWatchdogObj, 0)
             SetTimer(this.LeaveWatchdogObj, 0)

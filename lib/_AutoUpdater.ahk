@@ -1,8 +1,8 @@
 /************************************************************************
  * @description Autod Updater
  * @author Melo (melo@meloprofessional.com)
- * @date 2026/08/30
- * @version 1.5.106 (frequency days color)
+ * @date 2026/09/10
+ * @version 1.5.107 (Fixed path with spaces quote escaping)
  ************************************************************************/
 
 #Requires AutoHotkey v2.0
@@ -10,7 +10,7 @@
 StartAutoUpdater() {
     global FirstRun, Updater
 
-        if IsSet(AutoUpdater) && App.HasOwnProp("GitHubRepo") {
+    if IsSet(AutoUpdater) && App.HasOwnProp("GitHubRepo") {
         if !IsSet(FirstRun) {
             FirstRun := false
         }
@@ -178,8 +178,6 @@ class AutoUpdater {
         this.App.UpdateLastCheck := FormatTime(A_Now, "yyyy-MM-dd")
         if (this.App.HasOwnProp("UpdateLastCheck"))
             App.UpdateLastCheck := this.App.UpdateLastCheck
-;        if (Type(SaveINI) == "Func" || Type(SaveINI) == "Closure")
-;            SaveINI()
 
 		IsSet(SaveINI) ? SaveINI() : 0
 
@@ -274,15 +272,6 @@ class AutoUpdater {
         ; --- SAFE POWERSHELL EXECUTION WITH HEALTH CHECK ---
         psCmd := 'powershell -NoProfile -WindowStyle Hidden -Command "'
         psCmd .= 'Start-Sleep -Seconds 2; '
-        
-;        ; 1. Rename existing executable to backup
-;        psCmd .= 'Rename-Item -LiteralPath ' . ps_str(targetFile) . ' -NewName ' . ps_str(backupFileName) . ' -Force; '
-;
-;        ; 2. Install new binary directly over target path
-;        psCmd .= 'Copy-Item -LiteralPath ' . ps_str(payloadFile) . ' -Destination ' . ps_str(newTargetPath) . ' -Force; '
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 		; 1. Rename existing executable to backup
         psCmd .= 'Rename-Item -LiteralPath ' . ps_str(targetFile) . ' -NewName ' . ps_str(backupFileName) . ' -Force; '
@@ -296,14 +285,11 @@ class AutoUpdater {
         ; Explicitly overwrite the main executable to guarantee the script's original filename is preserved
         psCmd .= 'Copy-Item -LiteralPath ' . ps_str(payloadFile) . ' -Destination ' . ps_str(newTargetPath) . ' -Force; '
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-
-        ; 3. Launch new process passing clean arguments with embedded double quotes
+        ; 3. Launch new process passing clean arguments with embedded double quotes escaped for Start-Process
         if A_IsCompiled {
-            psCmd .= 'if (Test-Path -LiteralPath ' . ps_str(newTargetPath) . ') { Start-Process -FilePath ' . ps_str(newTargetPath) . ' -ArgumentList ' . ps_str('"' . '--signal-update-success=' . signalArg . '"') . ' }; '
+            psCmd .= 'if (Test-Path -LiteralPath ' . ps_str(newTargetPath) . ') { Start-Process -FilePath ' . ps_str(newTargetPath) . ' -ArgumentList ' . ps_str('\"--signal-update-success=' . signalArg . '\"') . ' }; '
         } else {
-            psCmd .= 'if (Test-Path -LiteralPath ' . ps_str(newTargetPath) . ') { Start-Process -FilePath ' . ps_str(A_AhkPath) . ' -ArgumentList @(' . ps_str('"' . newTargetPath . '"') . ', ' . ps_str('"' . '--signal-update-success=' . signalArg . '"') . ') }; '
+            psCmd .= 'if (Test-Path -LiteralPath ' . ps_str(newTargetPath) . ') { Start-Process -FilePath ' . ps_str(A_AhkPath) . ' -ArgumentList @(' . ps_str('\"' . newTargetPath . '\"') . ', ' . ps_str('\"--signal-update-success=' . signalArg . '\"') . ') }; '
         }
 
         ; 4. Monitor health check for up to 10 seconds
@@ -480,8 +466,6 @@ class AutoUpdater {
         MyGui.OnEvent("Close", CleanDestroy)
         MyGui.OnEvent("Escape", CleanDestroy)
 
-
-
 		if IsSet(GuiTracker) {
 			tracker := GuiTracker()
 			tracker.AddGui := MyGui
@@ -526,7 +510,6 @@ class AutoUpdater {
             App.UpdateAuto := this.App.UpdateAuto
             App.UpdateFrequencyDays := this.App.UpdateFrequencyDays
             App.UpdateLastCheck := this.App.UpdateLastCheck
-            ;(Type(SaveINI) == "Func" || Type(SaveINI) == "Closure") ? SaveINI() : ""
 			IsSet(SaveINI) ? SaveINI() : 0
         }
 

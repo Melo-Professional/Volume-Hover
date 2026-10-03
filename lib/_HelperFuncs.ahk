@@ -1,8 +1,8 @@
 /************************************************************************
  * @description QOL helper functions
  * @author Melo (melo@meloprofessional.com) and Pj
- * @date 2026/09/02
- * @version 1.3.8 (CleanTrayTip)
+ * @date 2026/09/11
+ * @version 1.4.0 (_Debug Tooltips as serial notifications)
  ***********************************************************************/
 
 
@@ -45,18 +45,26 @@ ReloadClean(args*) {
         }
     }
 
-    if DllCall("userenv\CreateEnvironmentBlock", "Ptr*", &lpEnv:=0, "Ptr",0, "Int",0) {
-        si := Buffer(siSize := A_PtrSize == 8 ? 104 : 68, 0), NumPut("UInt", siSize, si)
-        pi := Buffer(A_PtrSize == 8 ? 24 : 16, 0)
-        cmd := (A_IsCompiled ? '"' A_ScriptFullPath '" /force' : '"' A_AhkPath '" /force "' A_ScriptFullPath '"') argString
+    ; Get current process token to build the current user's environment block
+    hToken := 0
+    if DllCall("advapi32\OpenProcessToken", "Ptr", DllCall("GetCurrentProcess", "Ptr"), "UInt", 0x0008, "Ptr*", &hToken) {
+		lpEnv := 0
+        ; Pass hToken (instead of 0) so it generates the logged-in user's environment block
+        if DllCall("userenv\CreateEnvironmentBlock", "Ptr*", &lpEnv, "Ptr", hToken, "Int", 0) {
+            si := Buffer(siSize := A_PtrSize == 8 ? 104 : 68, 0), NumPut("UInt", siSize, si)
+            pi := Buffer(A_PtrSize == 8 ? 24 : 16, 0)
+            cmd := (A_IsCompiled ? '"' A_ScriptFullPath '" /force' : '"' A_AhkPath '" /force "' A_ScriptFullPath '"') argString
 
-        if DllCall("CreateProcessW", "Ptr",0, "Str",cmd, "Ptr",0, "Ptr",0, "Int",0, "UInt",0x400, "Ptr",lpEnv, "Ptr",0, "Ptr",si, "Ptr",pi)
-            ExitApp()
-        DllCall("userenv\DestroyEnvironmentBlock", "Ptr", lpEnv)
+            if DllCall("CreateProcessW", "Ptr", 0, "Str", cmd, "Ptr", 0, "Ptr", 0, "Int", 0, "UInt", 0x0400, "Ptr", lpEnv, "Ptr", 0, "Ptr", si, "Ptr", pi) {
+                DllCall("CloseHandle", "Ptr", hToken)
+                ExitApp()
+            }
+            DllCall("userenv\DestroyEnvironmentBlock", "Ptr", lpEnv)
+        }
+        DllCall("CloseHandle", "Ptr", hToken)
     }
     Reload()
 }
-
 
 /**
  * @description {@link ReloadWithArgs|_HelperFuncs.ahk}
@@ -496,8 +504,8 @@ Class OnFocusLoss {
 * result := _Debug(CalculateTotal(10, 20))
 */
 _Debug(val := "[CHECKPOINT]", mode := "ToolTip", duration := 6000) {
-	if !IsSet(Debug) || !Debug
-		return
+    if !IsSet(Debug) || !Debug
+        return
 
     ; 1. Inspect caller stack frame (-1 gets caller details)
     caller := Error("", -1)
@@ -518,18 +526,64 @@ _Debug(val := "[CHECKPOINT]", mode := "ToolTip", duration := 6000) {
     }
     
     if (mode = "ToolTip" || mode = "Both") {
-        static tipID := 2
-        currentID := tipID
+        static activeTips := Map()
         
-        ; Display ToolTip at mouse cursor position
-        MouseGetPos(&x, &y)
-        ToolTip(Format("LINE {1} ({2}):`n{3}", line, fn, formattedVal), x + 15, y + 15, currentID)
+        ; Find an available ToolTip ID (1 through 20)
+        currentID := 2
+        while activeTips.Has(currentID) && currentID <= 20
+            currentID++
+        if (currentID > 20)
+            currentID := 2
+
+        ; Detect Monitor Work Area for the current screen containing the cursor
+        CoordMode("ToolTip", "Screen")
+        CoordMode("Mouse", "Screen")
+        MouseGetPos(&mX, &mY)
         
-        ; Clear tooltip automatically after specified duration
-        SetTimer () => ToolTip(,,, currentID), -Abs(duration)
+        monIndex := 1
+        loop MonitorGetCount() {
+            MonitorGetWorkArea(A_Index, &mLeft, &mTop, &mRight, &mBottom)
+            if (mX >= mLeft && mX <= mRight && mY >= mTop && mY <= mBottom) {
+                monIndex := A_Index
+                break
+            }
+        }
+        MonitorGetWorkArea(monIndex, &mLeft, &mTop, &mRight, &mBottom)
+
+        ; Calculate vertical offset below the lowest active ToolTip
+        gap := 8
+        margin := 10
+        startY := mTop + margin
         
-        ; Rotate IDs between 1 and 20 to allow multiple floating tips simultaneously
-        tipID := (tipID >= 20) ? 2 : tipID + 1
+        if (activeTips.Count > 0) {
+            maxBottom := 0
+            for id, tip in activeTips {
+                bottom := tip.yPos + tip.height
+                if (bottom > maxBottom)
+                    maxBottom := bottom
+            }
+            startY := maxBottom + gap
+        }
+
+        ; Format string and calculate estimated height based on text lines
+        tooltipText := Format("LINE {1} ({2}):`n{3}", line, fn, formattedVal)
+        lineCount   := StrSplit(tooltipText, "`n").Length
+        estimatedHeight := 20 + (lineCount * 18)
+
+        xPos := mRight * 0.9
+
+        ; Record active ToolTip state
+        activeTips[currentID] := { yPos: startY, height: estimatedHeight }
+
+        ; Display ToolTip and set auto-cleanup timer
+        ToolTip(tooltipText, xPos, startY, currentID)
+        SetTimer(() => _ClearTip(currentID), -Abs(duration))
+
+        _ClearTip(id) {
+            ToolTip(,,, id)
+            if activeTips.Has(id)
+                activeTips.Delete(id)
+        }
     }
     
     if (mode = "OutputDebug") {
@@ -538,22 +592,22 @@ _Debug(val := "[CHECKPOINT]", mode := "ToolTip", duration := 6000) {
     
     return val
 
-	_Stringify(obj) {
-		if !IsObject(obj)
-			return String(obj)
-		
-		str := ""
-		if obj is Array {
-			for idx, item in obj
-				str .= (A_Index > 1 ? ", " : "") . _Stringify(item)
-			return "[" str "]"
-		} else if obj is Map {
-			for k, v in obj
-				str .= (A_Index > 1 ? ", " : "") . k ": " . _Stringify(v)
-			return "Map(" str ")"
-		}
-		return Object.Prototype.ToString.Call(obj)
-	}
+    _Stringify(obj) {
+        if !IsObject(obj)
+            return String(obj)
+        
+        str := ""
+        if obj is Array {
+            for idx, item in obj
+                str .= (A_Index > 1 ? ", " : "") . _Stringify(item)
+            return "[" str "]"
+        } else if obj is Map {
+            for k, v in obj
+                str .= (A_Index > 1 ? ", " : "") . k ": " . _Stringify(v)
+            return "Map(" str ")"
+        }
+        return Object.Prototype.ToString.Call(obj)
+    }
 }
 
 
@@ -677,6 +731,91 @@ ObjToString(obj) {
         str .= prop ": " val "`n"
     return RTrim(str, "`n")
 }
+
+
+/**
+ * @description
+ * Namespace for managing and resolving compiled image resources and path mappings for GUI controls.
+ */
+class ImageRes {
+    /**
+     * @description
+     * Iterates through an object of image sources and resolves compiled PNG resource references into "HBITMAP:" handle strings for direct GUI compatibility.
+     * @param {Object} mapObj
+     * An object containing key-value pairs where values are file paths, icon strings, or compiled resource ID paths (e.g., "app.exe, 209").
+     * @returns {Object}
+     * Returns a new object with the same key structure, where PNG resource strings are converted to "HBITMAP:<handle>" format and raw file paths remain untouched.
+     * @example <caption>Resolve mixed disk files and compiled resources</caption>
+     * img := ImageRes.Map({
+     *     Play:  A_IsCompiled ? A_ScriptFullPath ", 209" : "play.png",
+     *     Pause: A_IsCompiled ? A_ScriptFullPath ", 210" : "pause.png"
+     * })
+     * TrayGui.AddPicture("w30 h-1", img.Play)
+     */
+    static Map(mapObj) {
+        resolved := {}
+        for key, src in mapObj.OwnProps() {
+            if RegExMatch(src, "^(.*?),\s*(-?\d+)$", &m) {
+                resID := Abs(Integer(m[2]))
+                hBm := This.PNG(resID)
+                resolved.%key% := hBm ? "HBITMAP:" hBm : ""
+            } else {
+                resolved.%key% := src
+            }
+        }
+        return resolved
+    }
+
+    /**
+     * @description
+     * Extracts an embedded raw PNG resource (RT_RCDATA) from the executable's memory module and converts it into a Windows GDI+ HBITMAP handle. Automatically initializes GDI+ on first call.
+     * @param {Integer} resID
+     * The numeric resource ID assigned to the PNG image during compilation (e.g., via ;@Ahk2Exe-AddResource).
+     * @param {Integer} [resType=10]
+     * The Windows resource type ID (10 represents RT_RCDATA for raw binary data).
+     * @returns {Integer}
+     * Returns the HBITMAP handle pointer address, or 0 if the resource could not be found or loaded.
+     * @example <caption>Manually load a single PNG resource handle into a picture control</caption>
+     * hBitmap := ImageRes.PNG(209)
+     * if (hBitmap)
+     *     TrayGui.AddPicture("w30 h-1", "HBITMAP:" hBitmap)
+     */
+    static PNG(resID, resType := 10) {
+        if !(hModule := DllCall("GetModuleHandle", "Ptr", 0, "Ptr"))
+            return 0
+        if !(hRes := DllCall("FindResource", "Ptr", hModule, "Ptr", resID, "Ptr", resType, "Ptr"))
+            return 0
+
+        hData := DllCall("LoadResource", "Ptr", hModule, "Ptr", hRes, "Ptr")
+        pData := DllCall("LockResource", "Ptr", hData, "Ptr")
+        sz    := DllCall("SizeofResource", "Ptr", hModule, "Ptr", hRes, "UInt")
+        if (!pData || !sz)
+            return 0
+
+        static pToken := 0
+        if (!pToken) {
+            si := Buffer(A_PtrSize = 8 ? 24 : 16, 0)
+            NumPut("UInt", 1, si, 0)
+            DllCall("gdiplus\GdiplusStartup", "Ptr*", &pToken, "Ptr", si, "Ptr", 0)
+        }
+
+        if !(pStream := DllCall("shlwapi\SHCreateMemStream", "Ptr", pData, "UInt", sz, "Ptr"))
+            return 0
+
+        pBitmap := 0
+        DllCall("gdiplus\GdipCreateBitmapFromStream", "Ptr", pStream, "Ptr*", &pBitmap)
+        ObjRelease(pStream)
+        if (!pBitmap)
+            return 0
+
+        hBitmap := 0
+        DllCall("gdiplus\GdipCreateHBITMAPFromBitmap", "Ptr", pBitmap, "Ptr*", &hBitmap, "UInt", 0xFF000000)
+        DllCall("gdiplus\GdipDisposeImage", "Ptr", pBitmap)
+
+        return hBitmap
+    }
+}
+
 
 /**
  * @description {@link EnableAutoScroll|_HelperFuncs.ahk}
