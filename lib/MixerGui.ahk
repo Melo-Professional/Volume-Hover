@@ -347,35 +347,16 @@ ShowMixerGuiNow() {
 
 	MainGui.Show("x-99999 y-99999 w" 380 "h" CurrentGuiHeight " Hide NoActivate")
 	GuiAtTray(MainGui, TrayHandler, &spawnX, &spawnY, &w, &h)
-/* 
-	DllCall("User32\SetWindowPos", 
-		"Ptr", MainGui.Hwnd,                  ; hWnd: Window handle
-		"Ptr", 0,                             ; hWndInsertAfter: HWND_TOP (0) [Ignored due to SWP_NOZORDER]
-		"Int", spawnX, "Int", spawnY,         ; X, Y: New position coordinates
-		"Int", w, "Int", h,                   ; cx, cy: New width and height
-		"UInt", 0x0010 | 0x0004 | 0x0040      ; 0x0010 SWP_NOACTIVATE | 0x0004 SWP_NOZORDER | 0x0040 SWP_SHOWWINDOW
-	)
-
-    IsGuiVisible := true
 
 	DllCall("User32\SetWindowPos", 
-		"Ptr", MainGui.Hwnd,                  ; hWnd: Window handle
-		"Ptr", -1,                            ; hWndInsertAfter: HWND_TOPMOST (-1) [Always-On-Top]
-		"Int", 0, "Int", 0,                   ; X, Y: Position (Ignored due to SWP_NOMOVE)
-		"Int", 0, "Int", 0,                   ; cx, cy: Size (Ignored due to SWP_NOSIZE)
-		"UInt", 0x0001 | 0x0002 | 0x0040      ; 0x0001 SWP_NOSIZE | 0x0002 SWP_NOMOVE | 0x0040 SWP_SHOWWINDOW
+	    "Ptr", MainGui.Hwnd,                  ; hWnd: Window handle
+	    "Ptr", -1,                            ; hWndInsertAfter: HWND_TOPMOST (-1) [Always-On-Top]
+	    "Int", spawnX, "Int", spawnY,         ; X, Y: New position coordinates
+	    "Int", w, "Int", h,                   ; cx, cy: New width and height
+	    "UInt", 0x0010 | 0x0040               ; 0x0010 SWP_NOACTIVATE | 0x0040 SWP_SHOWWINDOW
 	)
- */
 
-DllCall("User32\SetWindowPos", 
-    "Ptr", MainGui.Hwnd,                  ; hWnd: Window handle
-    "Ptr", -1,                            ; hWndInsertAfter: HWND_TOPMOST (-1) [Always-On-Top]
-    "Int", spawnX, "Int", spawnY,         ; X, Y: New position coordinates
-    "Int", w, "Int", h,                   ; cx, cy: New width and height
-    "UInt", 0x0010 | 0x0040               ; 0x0010 SWP_NOACTIVATE | 0x0040 SWP_SHOWWINDOW
-)
-
-
+	IsGuiVisible := true
     ScheduleHide()
 }
 
